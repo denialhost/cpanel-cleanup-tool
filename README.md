@@ -1,6 +1,6 @@
 # CCT · cPanel Cleanup Tool
 
-Plugin v0.2.0 para **cPanel con tema Jupiter**, instalado por el administrador de **WHM/root**. Cada cliente revisa únicamente su propia cuenta.
+Plugin v0.2.1 para **cPanel con tema Jupiter**, instalado por el administrador de **WHM/root**. Cada cliente revisa únicamente su propia cuenta.
 
 Muestra cuota asignada, espacio ocupado/libre y candidatos con nombre, ubicación, bloques ocupados y fecha de modificación. Al seleccionar elementos calcula al instante el ahorro estimado, su porcentaje de la cuota, su porcentaje del uso actual y el espacio libre proyectado. Después del borrado consulta nuevamente la cuota; no presenta el ahorro estimado como recuperación real verificada.
 
@@ -19,15 +19,15 @@ Repositorio: [denialhost/cpanel-cleanup-tool](https://github.com/denialhost/cpan
 Ejecuta como **root** en cada servidor cPanel/WHM con Jupiter y Python 3.9+:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://github.com/denialhost/cpanel-cleanup-tool/releases/download/v0.2.0/install-cct.sh -o /root/install-cct.sh
-bash /root/install-cct.sh 0.2.0
+curl --proto '=https' --tlsv1.2 -fsSL https://github.com/denialhost/cpanel-cleanup-tool/releases/download/v0.2.1/install-cct.sh -o /root/install-cct.sh
+bash /root/install-cct.sh 0.2.1
 ```
 
 El instalador descarga el paquete de esa versión, verifica su SHA-256 y lo instala. También permite actualizar una instalación existente: descarga el instalador de la versión nueva y ejecútalo con ese número. No hay actualizaciones automáticas. Durante una actualización conserva temporalmente la versión anterior y restaura sus archivos si falla el registro en cPanel.
 
-Después habilita **cct** en **WHM → Packages → Feature Manager** para los paquetes que corresponda. Cada cliente verá **cPanel → Archivos → Limpieza de espacio**. La instalación no analiza ni elimina datos de clientes.
+En **WHM → Packages → Feature Manager**, busca **Limpieza de espacio Plugin** (identificador `cct`) y verifica que esté habilitado en las listas que corresponda; cPanel puede seleccionarlo por defecto al registrarlo. Cada cliente verá **cPanel → Archivos → Limpieza de espacio**. La instalación no analiza ni elimina datos de clientes.
 
-Para elegir otro Python, usa `CCT_PYTHON=/usr/bin/python3.11 bash /root/install-cct.sh 0.2.0`. El instalador comprueba los requisitos antes de modificar la instalación y no instala dependencias del sistema.
+Para elegir otro Python, usa `CCT_PYTHON=/usr/bin/python3.11 bash /root/install-cct.sh 0.2.1`. El instalador comprueba los requisitos antes de modificar la instalación y no instala dependencias del sistema.
 
 Para desinstalar:
 
@@ -45,10 +45,10 @@ Abre <http://127.0.0.1:8765>. Usa datos ficticios y simula el borrado en memoria
 
 ## Instalar en un servidor de prueba
 
-Requisitos: Linux, cPanel & WHM con Jupiter, acceso root para instalar, Python **3.9+** y `/usr/local/cpanel/bin/uapi`. No hay dependencias de terceros ni claves API que configurar. La interfaz utiliza la sesión autenticada de cPanel.
+Requisitos: Linux, cPanel & WHM con Jupiter, acceso root para instalar, Python **3.9+** y el Perl/LiveAPI incluido con cPanel. No hay dependencias de terceros ni claves API que configurar. La interfaz utiliza la sesión autenticada de cPanel.
 
 ```bash
-tar -xzf cct-0.2.0.tar.gz
+tar -xzf cct-0.2.1.tar.gz
 cd cct
 bash install.sh
 ```
@@ -102,7 +102,7 @@ Se revalidan la pertenencia de las cuentas, los identificadores y el estado de c
 
 ### Refresco de caché de cPanel
 
-Después de una eliminación, CCT intenta vaciar la caché de uso de disco **de esa cuenta** mediante `DiskUsage::clearcache` y vuelve a leer la cuota. También ofrece **Refrescar uso en cPanel**. Se utiliza `/usr/local/cpanel/bin/cpapi2`: esta función documentada pertenece a API 2, deprecada, y cPanel indica que no hay equivalente UAPI. Si no está disponible o la función está deshabilitada, el borrado ya completado sigue informado y aparece un aviso.
+Después de una eliminación, CCT intenta vaciar la caché de uso de disco **de esa cuenta** mediante `DiskUsage::clearcache` y vuelve a leer la cuota. También ofrece **Refrescar uso en cPanel**. Se utiliza API 2 a través de la conexión LiveAPI: esta función documentada pertenece a API 2, deprecada, y cPanel indica que no hay equivalente UAPI. Si no está disponible o la función está deshabilitada, el borrado ya completado sigue informado y aparece un aviso.
 
 La respuesta distingue **caché vaciada**, **vaciado en curso** y **refresco no disponible**. Vaciar la caché no garantiza que todos los contadores, buzones o el panel lateral se hayan recalculado. El aviso sugiere volver a consultar en **5 minutos**, identificado como intervalo de comprobación, no plazo máximo garantizado. No hay un tiempo general documentado aplicable a todas las vistas; el ciclo de cuatro horas documentado para la caché de bases de datos no se aplica como promesa a esta limpieza de archivos. No se ejecutan `fixquotas` ni reconstrucciones globales.
 
@@ -114,12 +114,21 @@ La confirmación enumera los elementos concretos y exige escribir **ELIMINAR**. 
 
 El análisis no crea inventarios ni archivos temporales dentro de la cuenta, para poder trabajar cuando la cuota está llena. Los datos permanecen en el servidor y el navegador; no hay telemetría ni recursos externos.
 
+## Conexión con cPanel y actualización desde v0.2.0
+
+La entrada `index.live.pl` inicia el módulo oficial `Cpanel::LiveAPI`, conecta una vez por solicitud y cierra la conexión antes de emitir la respuesta HTTP. El motor Python se comunica con esa entrada mediante dos tuberías privadas; las consultas UAPI y el refresco API 2 usan la misma sesión autenticada. No se ejecutan `uapi` ni `cpapi2` como subprocesos dentro de LiveAPI. La entrada anterior `index.live.cgi` se conserva como un acceso de compatibilidad al mismo puente.
+
+La versión 0.2.0 no iniciaba la conexión requerida por la extensión `.live.cgi`. Esto podía producir `Child failed to make LIVEAPI connection to cPanel` y texto adicional detrás de la respuesta JSON. Actualiza a 0.2.1 con el instalador de esta página y vuelve a abrir el plugin desde el icono de cPanel. El instalador conserva las selecciones de Feature Manager; no necesitas desinstalar primero.
+
+Las pruebas de integración usan el puente Perl y el motor Python reales con un módulo LiveAPI simulado. Comprueban la apertura y cierre de la conexión, la cuota, el refresco de caché, el rechazo de una función deshabilitada y que los errores devuelvan un único JSON. No sustituyen la validación en un servidor cPanel real.
+
 ## Comprobaciones
 
 ```bash
 python -m unittest discover -s tests -v
 node --test tests/model.test.mjs tests/mail-model.test.mjs
-python -m py_compile plugin/cct_core.py plugin/cct_mail.py plugin/index.live.cgi preview.py
+python -m py_compile plugin/cct_core.py plugin/cct_mail.py plugin/cct_backend.py plugin/cct_live.py preview.py
+perl -c plugin/index.live.pl
 bash -n install.sh uninstall.sh bootstrap.sh
 python tools/package.py
 ```

@@ -28,7 +28,10 @@ jobs:
       - name: Interface tests
         run: node --test tests/model.test.mjs tests/mail-model.test.mjs
       - name: Installer syntax
-        run: bash -n install.sh uninstall.sh bootstrap.sh
+        run: |
+          bash -n install.sh uninstall.sh bootstrap.sh
+          perl -c plugin/index.live.pl
+          perl -c plugin/index.live.cgi
       - name: Build package
         run: python tools/package.py
 
