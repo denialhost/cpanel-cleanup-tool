@@ -26,7 +26,7 @@ jobs:
       - name: Python tests
         run: python -m unittest discover -s tests -v
       - name: Interface tests
-        run: node --test tests/model.test.mjs tests/mail-model.test.mjs
+        run: node --test tests/model.test.mjs tests/mail-model.test.mjs tests/activity.test.mjs
       - name: Installer syntax
         run: |
           bash -n install.sh uninstall.sh bootstrap.sh

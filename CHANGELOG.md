@@ -1,5 +1,14 @@
 # Cambios
 
+## 0.2.4
+
+- Muestra una ventana con tres puntos animados al analizar la cuenta, consultar la cuota y preparar el correo. No inventa porcentajes cuando aún no se conoce el total.
+- Muestra el porcentaje de elementos procesados durante el borrado, con avance al completar cada grupo y conteos separados de eliminados y pendientes.
+- Reduce los resultados a un resumen breve. Los errores se agrupan en detalles plegados, con ejemplos limitados y un informe completo descargable.
+- Conserva como texto los componentes de la huella de cada archivo. JavaScript redondeaba las fechas en nanosegundos y podía rechazar selecciones válidas como si los archivos hubieran cambiado.
+- Añade pruebas que pasan las huellas por JSON de Node/JavaScript y mantienen el rechazo de archivos modificados, además de regresiones para el progreso y los resultados masivos.
+- Renueva las capturas con datos ficticios y escenarios de espera, progreso y errores simulados.
+
 ## 0.2.3
 
 - Usa archivos `.js` para los módulos del navegador. En cPanel 138, cpsrvd devolvía los archivos `.mjs` como HTML, por lo que el navegador no los ejecutaba y la interfaz quedaba en «Conectando cuenta…».

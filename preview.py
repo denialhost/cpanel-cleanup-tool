@@ -44,7 +44,7 @@ def fixture():
                 "path":"/home/tienda/"+path, "category":category, "risk":risk,
                 "selectable":risk!="protected", "reason":reason, "size_bytes":int(size),
                 "reclaimable_bytes":int(size), "modified_at":now-days*86400,
-                "fingerprint":[0,n,int(size),int(now-days*86400)*10**9,0,1]}
+                "fingerprint":[str(v) for v in (0,n,int(size),int(now-days*86400)*10**9,0,1)]}
         if category in {"spam","mail_trash"}:
             item.update(account="ventas@tienda.cl" if "/ventas/" in path else "contacto@tienda.cl",uid=n+100,mailbox_guid="a"*32,uid_validity="1")
         items.append(item)
@@ -70,10 +70,10 @@ def fixture():
         size=int(size_mib*MIB)
         mail_items.append({"id":f"mail-demo-{n}","name":f"demo-message-{n}","relative_path":location,"path":"/home/tienda/"+location,
             "category":"mail_date","risk":"review","selectable":True,"reason":"Mensaje anterior a la fecha elegida.",
-            "size_bytes":size,"reclaimable_bytes":size,"modified_at":now-age*86400,"fingerprint":[0,1000+n,size,int(now-age*86400)*10**9,0,1],
+            "size_bytes":size,"reclaimable_bytes":size,"modified_at":now-age*86400,"fingerprint":[str(v) for v in (0,1000+n,size,int(now-age*86400)*10**9,0,1)],
             "account":address,"uid":200+n,"uid_validity":"42","mailbox_guid":f"{n+1:032x}","mailbox":folder})
     return {"items":items,"mail_items":mail_items,"partial":False,"warnings":[],"scanned_at":now,"visited":8421,
-            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.2.3",
+            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.2.4",
             "quota":{"limit_bytes":limit,"used_bytes":used,"free_bytes":limit-used,"source":"demo"}}
 
 
@@ -132,7 +132,7 @@ class Preview(BaseHTTPRequestHandler):
         if path == "/api/mail_accounts":
             return self.send({"accounts":DEMO_ACCOUNTS})
         filename = "index.html" if path == "/" else path.lstrip("/")
-        if filename not in {"index.html","styles.css","app.js","model.js","mail.js","mail-model.js","icon.svg"}:
+        if filename not in {"index.html","styles.css","app.js","model.js","mail.js","mail-model.js","activity.js","icon.svg"}:
             return self.send({"error":"No disponible."},404)
         body=(PLUGIN/filename).read_bytes()
         if filename == "index.html":

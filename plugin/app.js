@@ -1,14 +1,16 @@
 import {categories, formatBytes, formatPercent, percent, totals, filterItems} from './model.js';
 import {setupMailCleanup} from './mail.js';
+import {createActivity, renderDetails, resultSummary} from './activity.js';
 const $ = id => document.getElementById(id);
 const demo = document.body.dataset.demo === 'true';
 const state={items:[],selected:new Set(),quota:{},category:'all',page:0,pageSize:9,busy:false,scannedAt:0};
 let mailControls;
+const activity = createActivity();
 const icons={trash:'♧',logs:'≡',backups:'▤',spam:'✉',mail_trash:'✉'};
 const riskText={candidate:'Candidato',review:'Revisar',protected:'Protegido'};
 function node(tag, cls, text) { const el=document.createElement(tag); if(cls)el.className=cls;if(text!=null)el.textContent=text;return el; }
 function message(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);$('notice').hidden=false;}
-function warnings(messages=[]){$('warnings').replaceChildren();const list=node('ul');for(const msg of messages)list.append(node('li','',msg));$('warnings').append(list);$('warnings').hidden=!messages.length;}
+function warnings(messages=[],failures=[]){renderDetails($('warnings'),messages,failures);}
 function cacheNotice(refresh){
   if(!refresh)return;
   $('cache-notice').hidden=false;$('cache-message').textContent=refresh.message;
@@ -101,11 +103,13 @@ function renderSelection(){
 function render(){renderQuota();renderTabs();renderTable();renderSelection();}
 function busy(value){state.busy=value;document.body.classList.toggle('loading',value);$('scan').disabled=value;$('refresh-quota').disabled=value;$('reset-demo').disabled=value;for(const id of ['search','age','sort'])$(id).disabled=value;mailControls?.setBusy(value);render();}
 async function scan(){
-  if(state.busy)return;busy(true);$('notice').hidden=true;
+  if(state.busy)return;
+  const ticket=activity.begin({title:'Generando tu análisis',message:'Espera mientras revisamos tus archivos y correos.'});
+  busy(true);$('notice').hidden=true;
   try{const data=await request('scan');state.items=data.items;state.selected.clear();state.quota=data.quota;state.scannedAt=data.scanned_at;state.page=0;$('account-name').textContent=data.account.username;
     $('scan-meta').textContent=`${data.partial?'Análisis parcial':'Último análisis'} · ${new Date(data.scanned_at*1000).toLocaleString('es-CL')} · ${data.visited.toLocaleString('es-CL')} archivos revisados`;
     warnings([...data.warnings,...(data.quota.error?[data.quota.error]:[])]);
-  }catch(err){message(err.message,true);}finally{busy(false);}
+  }catch(err){message(err.message,true);if(!state.scannedAt)$('account-name').textContent='Cuenta pendiente de analizar';}finally{busy(false);activity.end(ticket);}
 }
 function review(){
   const t=totals(state.items,state.selected,state.quota);if(!t.picked.length)return;
@@ -121,28 +125,26 @@ async function performDelete(event){
   const backupAck=$('backup-ack').checked;
   mailControls?.invalidate();
   $('confirmation').close();busy(true);
-  let deleted=0,estimated=0,failures=[];const startingUsage=state.quota.used_bytes;
+  const ticket=activity.begin({title:demo?'Simulando limpieza':'Liberando espacio',message:'Validando la selección y procesando los elementos confirmados.',completed:0,total:items.length});
+  let deleted=0,estimated=0,failures=[];const notices=[];
   try{
     for(let offset=0;offset<items.length;offset+=250){
-      message(`${demo?'Simulando limpieza':'Limpiando selección'}… ${offset} de ${items.length} elementos procesados.`);
       const result=await request('delete',{items:items.slice(offset,offset+250),confirm:'ELIMINAR',backups_ack:backupAck});
       const ids=new Set(result.deleted_ids);deleted+=ids.size;estimated+=result.estimated_removed_bytes;failures.push(...result.failed);
       state.items=state.items.filter(i=>!ids.has(i.id));for(const id of ids)state.selected.delete(id);state.quota=result.quota;
       for(const failure of result.failed)state.selected.delete(failure.id);
-      warnings(result.warnings);render();
+      notices.push(...(result.warnings||[]));if(result.quota?.error)notices.push(result.quota.error);render();
       cacheNotice(result.cache_refresh);
+      activity.update(ticket,{completed:Math.min(offset+250,items.length),message:`${deleted} eliminados · ${failures.length} pendientes. Continuamos con tu selección.`});
     }
-    const observed=startingUsage!=null&&state.quota.used_bytes!=null?startingUsage-state.quota.used_bytes:null;
-    const measured=observed==null?'No se pudo volver a leer la cuota.':observed>0?`La cuota informa ${formatBytes(observed)} menos de uso.`:observed<0?`La cuota informa ${formatBytes(-observed)} más de uso; puede haber actividad simultánea.`:'La cuota todavía no informa una reducción.';
-    message(`${demo?'Simulación terminada. ':''}${deleted} elementos eliminados. Ahorro estimado de los elementos eliminados: ${formatBytes(estimated)}. ${measured} La cuota puede actualizarse con retraso.${failures.length?` ${failures.length} elementos no pudieron eliminarse; revisa los detalles.`:''}`,!!failures.length);
-    if(failures.length)warnings(failures.map(f=>`${f.path}: ${f.error}`));
-    if(state.quota.error)warnings([state.quota.error]);
-  }catch(err){message(`${deleted} elementos eliminados antes de detenerse. ${err.message} Vuelve a analizar antes de reintentar.`,true);state.selected.clear();}
-  finally{busy(false);}
+    message(resultSummary({deleted,bytes:estimated,failed:failures.length,demo}),!!failures.length);
+    warnings(notices,failures);
+  }catch(err){message(resultSummary({deleted,demo,interrupted:true}),true);warnings([...notices,err.message],failures);state.selected.clear();}
+  finally{busy(false);activity.end(ticket);}
 }
 $('scan').addEventListener('click',scan);
 $('refresh-quota').textContent='Refrescar uso en cPanel ↻';
-$('refresh-quota').addEventListener('click',async()=>{if(state.busy)return;busy(true);try{const data=await request('refresh',{});state.quota=data.quota;cacheNotice(data.cache_refresh);data.quota.error?message(data.quota.error,true):message('Cuota consultada nuevamente. Puedes recargar la pantalla principal de cPanel para revisar sus indicadores.');}catch(err){message(err.message,true);}finally{busy(false);}});
+$('refresh-quota').addEventListener('click',async()=>{if(state.busy)return;const ticket=activity.begin({title:'Actualizando uso de disco',message:'Espera mientras consultamos la cuota de tu cuenta.'});busy(true);try{const data=await request('refresh',{});state.quota=data.quota;cacheNotice(data.cache_refresh);data.quota.error?message('No se pudo consultar la cuota. Revisa los detalles.',true):message('Cuota actualizada.');warnings(data.quota.error?[data.quota.error]:[]);}catch(err){message('No se pudo actualizar la cuota. Revisa los detalles.',true);warnings([err.message]);}finally{busy(false);activity.end(ticket);}});
 $('select-all').addEventListener('change',()=>{for(const item of visible().filter(i=>i.selectable))$('select-all').checked?state.selected.add(item.id):state.selected.delete(item.id);renderTable();renderSelection();});
 $('clear-selection').addEventListener('click',()=>{state.selected.clear();renderTable();renderSelection();});
 for(const id of ['search','age','sort'])$(id).addEventListener(id==='search'?'input':'change',()=>{state.page=0;renderTable();renderSelection();});
@@ -150,7 +152,7 @@ $('previous-page').addEventListener('click',()=>{state.page--;renderTable();});$
 $('review').addEventListener('click',review);for(const button of document.querySelectorAll('.close-dialog'))button.addEventListener('click',()=>$('confirmation').close());
 $('confirm-word').addEventListener('input',validateConfirm);$('backup-ack').addEventListener('change',validateConfirm);$('confirm-form').addEventListener('submit',performDelete);
 if(demo){$('demo-banner').hidden=false;$('reset-demo').addEventListener('click',async()=>{try{await request('reset',{});mailControls?.invalidate();scan();}catch(err){message(err.message,true);}});}
-mailControls=setupMailCleanup({request,demo,isBusy:()=>state.busy,setBusy:busy,cacheNotice,
+mailControls=setupMailCleanup({request,demo,isBusy:()=>state.busy,setBusy:busy,cacheNotice,activity,
   onQuota(quota){state.quota=quota;render();},
   onResult(result){const ids=new Set(result.deleted_ids);state.items=state.items.filter(i=>!ids.has(i.id));for(const id of ids)state.selected.delete(id);state.quota=result.quota;render();}
 });

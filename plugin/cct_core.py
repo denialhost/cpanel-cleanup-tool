@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
 
-VERSION = "0.2.3"
+VERSION = "0.2.4"
 DAY = 86400
 MAX_ITEMS = 5000
 MAX_VISITED = 150000
@@ -126,7 +126,10 @@ def get_quota(api):
 
 
 def fingerprint(st):
-    return [st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns, st.st_nlink]
+    # Browser JSON numbers cannot preserve nanoseconds or large inode numbers.
+    # Keep every component exact across Python -> JavaScript -> Python.
+    return [str(value) for value in (st.st_dev, st.st_ino, st.st_size,
+                                    st.st_mtime_ns, st.st_ctime_ns, st.st_nlink)]
 
 
 def allocated(st):

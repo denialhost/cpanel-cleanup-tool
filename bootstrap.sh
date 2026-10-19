@@ -2,10 +2,10 @@
 # Installer for the public, versioned GitHub release. Also used for updates.
 set -euo pipefail
 
-VERSION="${1:-${CCT_VERSION:-0.2.3}}"
+VERSION="${1:-${CCT_VERSION:-0.2.4}}"
 VERSION="${VERSION#v}"
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || $# -gt 1 ]]; then
-    echo 'Uso: bash install-cct.sh [0.2.3]' >&2
+    echo 'Uso: bash install-cct.sh [0.2.4]' >&2
     exit 1
 fi
 if [[ "$(id -u)" != 0 ]]; then
