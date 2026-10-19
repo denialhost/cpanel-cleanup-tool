@@ -1,0 +1,15 @@
+[
+  {
+    "id": "cct",
+    "name": "Limpieza de espacio",
+    "description": "Revisa archivos y correos candidatos a limpieza y estima el espacio recuperable de tu cuenta.",
+    "type": "link",
+    "uri": "cct/index.live.cgi",
+    "icon": "icon.svg",
+    "group_id": "files",
+    "order": 99,
+    "featuremanager": 1,
+    "feature": "cct",
+    "key": "cct"
+  }
+]
