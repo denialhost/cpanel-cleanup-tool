@@ -1,0 +1,58 @@
+name: Validate and package CCT
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python: ['3.9', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Python tests
+        run: python -m unittest discover -s tests -v
+      - name: Interface tests
+        run: node --test tests/model.test.mjs tests/mail-model.test.mjs
+      - name: Installer syntax
+        run: bash -n install.sh uninstall.sh bootstrap.sh
+      - name: Build package
+        run: python tools/package.py
+
+  publish:
+    if: github.event_name == 'release'
+    needs: validate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify release tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: test "$RELEASE_TAG" = "v$(cat VERSION)"
+      - name: Build release assets
+        run: python3 tools/package.py
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="$(cat VERSION)"
+          gh release upload "$RELEASE_TAG" "artifacts/cct-${version}.tar.gz" artifacts/SHA256SUMS artifacts/install-cct.sh artifacts/VERSION
