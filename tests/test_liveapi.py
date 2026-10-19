@@ -85,22 +85,47 @@ class BridgeIntegrationTests(unittest.TestCase):
         (self.folder / 'index.live.pl').write_text(bridge.replace("use lib '/usr/local/cpanel';", "use lib '" + str(self.folder) + "';"))
         (self.folder / 'python-path').write_text(sys.executable + '\n')
 
-    def request(self, action='quota', mode='', body=b'', extra=None):
+    def request(self, action='quota', mode='', body=b'', extra=None, content_length='auto'):
         env = {**os.environ, 'QUERY_STRING': 'action=' + action, 'REQUEST_METHOD': 'POST' if body else 'GET',
                'CONTENT_LENGTH': str(len(body)), 'CCT_TEST_LOG': str(self.folder / 'calls.log'), 'CCT_TEST_MODE': mode}
         env.pop('REMOTE_USER', None)
         env.update(extra or {})
+        if content_length is None:
+            env.pop('CONTENT_LENGTH', None)
+        elif content_length != 'auto':
+            env['CONTENT_LENGTH'] = content_length
         result = subprocess.run(['perl', str(self.folder / 'index.live.pl')], input=body, env=env, capture_output=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
         headers, payload = result.stdout.split(b'\r\n\r\n', 1)
-        self.assertIn(b'Content-Type: application/json', headers)
+        self.assertIn(b'Content-Type: ' + (b'text/html' if action == 'page' else b'application/json'), headers)
         length = int(next(line.split(b': ', 1)[1] for line in headers.split(b'\r\n') if line.startswith(b'Content-Length: ')))
         self.assertEqual(length, len(payload))
         self.assertNotIn(b'diagnostic', result.stdout)
         calls = (self.folder / 'calls.log').read_text().splitlines()
         self.assertEqual(calls.count('new'), 1)
         self.assertEqual(calls.count('end'), 1)
-        return headers, json.loads(payload), calls
+        return headers, payload.decode('utf-8') if action == 'page' else json.loads(payload), calls
+
+    def test_page_get_accepts_empty_content_length_from_cpsrvd(self):
+        headers, page, calls = self.request(action='page', content_length='')
+        self.assertIn(b'Status: 200', headers)
+        self.assertIn('<!doctype html>', page.lower())
+        self.assertEqual(calls, ['new', 'Features/has_feature', 'end'])
+
+    def test_get_accepts_missing_content_length(self):
+        headers, data, calls = self.request(content_length=None)
+        self.assertIn(b'Status: 200', headers)
+        self.assertEqual(data['quota']['limit_bytes'], 200 * 1048576)
+
+    def test_malformed_and_oversized_content_lengths_are_rejected(self):
+        for value in ['-1', '1x', ' 0', '0 ', '1048577']:
+            with self.subTest(value=value):
+                log = self.folder / 'calls.log'
+                log.unlink(missing_ok=True)
+                headers, data, calls = self.request(content_length=value)
+                self.assertIn(b'Status: 500', headers)
+                self.assertIn('error', data)
+                self.assertEqual(calls, ['new', 'end'])
 
     def test_real_bridge_lifecycle_and_quota_with_stub_vendor(self):
         headers, data, calls = self.request()

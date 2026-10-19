@@ -36,7 +36,10 @@ my $ok = eval {
     $live = vendor_call(sub { Cpanel::LiveAPI->new() });
     die 'LiveAPI did not connect' unless $live;
 
-    my $length = $ENV{CONTENT_LENGTH} // '0';
+    # cpsrvd supplies an empty CONTENT_LENGTH for requests without a body.
+    # CGI treats an absent or empty value as no body, including the page GET.
+    my $length = $ENV{CONTENT_LENGTH};
+    $length = '0' if !defined($length) || $length eq '';
     die 'Invalid request length' unless $length =~ /\A[0-9]+\z/ && $length <= 1048576;
     my $body = '';
     binmode STDIN;

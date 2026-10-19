@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.2
+
+- Acepta `CONTENT_LENGTH` vacío o ausente en solicitudes sin cuerpo. cpsrvd puede enviarlo vacío al abrir el plugin, lo que provocaba el error genérico de conexión en v0.2.1.
+- Mantiene el rechazo de longitudes negativas, no numéricas o superiores a 1 MiB.
+- Añade regresiones para la apertura HTML con longitud vacía, la consulta de cuota sin la variable y las longitudes inválidas.
+- Verificado en un servidor real con cPanel 138.0 build 15: apertura HTML, cuota y listado de correo, además del acceso de compatibilidad. No se ejecutaron borrados en esa validación.
+
 ## 0.2.1
 
 - Corrige la conexión LiveAPI que podía añadir `Child failed to make LIVEAPI connection to cPanel` detrás del JSON.
