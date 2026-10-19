@@ -73,7 +73,7 @@ def fixture():
             "size_bytes":size,"reclaimable_bytes":size,"modified_at":now-age*86400,"fingerprint":[0,1000+n,size,int(now-age*86400)*10**9,0,1],
             "account":address,"uid":200+n,"uid_validity":"42","mailbox_guid":f"{n+1:032x}","mailbox":folder})
     return {"items":items,"mail_items":mail_items,"partial":False,"warnings":[],"scanned_at":now,"visited":8421,
-            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.2.2",
+            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.2.3",
             "quota":{"limit_bytes":limit,"used_bytes":used,"free_bytes":limit-used,"source":"demo"}}
 
 
@@ -132,12 +132,12 @@ class Preview(BaseHTTPRequestHandler):
         if path == "/api/mail_accounts":
             return self.send({"accounts":DEMO_ACCOUNTS})
         filename = "index.html" if path == "/" else path.lstrip("/")
-        if filename not in {"index.html","styles.css","app.mjs","model.mjs","mail.mjs","mail-model.mjs","icon.svg"}:
+        if filename not in {"index.html","styles.css","app.js","model.js","mail.js","mail-model.js","icon.svg"}:
             return self.send({"error":"No disponible."},404)
         body=(PLUGIN/filename).read_bytes()
         if filename == "index.html":
             body=body.replace(b'data-demo="false"',b'data-demo="true"')
-        content_type={".mjs":"text/javascript; charset=utf-8",".css":"text/css; charset=utf-8",".html":"text/html; charset=utf-8",".svg":"image/svg+xml"}[Path(filename).suffix]
+        content_type={".js":"text/javascript; charset=utf-8",".css":"text/css; charset=utf-8",".html":"text/html; charset=utf-8",".svg":"image/svg+xml"}[Path(filename).suffix]
         self.send(body,content_type=content_type)
 
     def do_POST(self):

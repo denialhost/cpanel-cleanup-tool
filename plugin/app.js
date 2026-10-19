@@ -1,5 +1,5 @@
-import {categories, formatBytes, formatPercent, percent, totals, filterItems} from './model.mjs';
-import {setupMailCleanup} from './mail.mjs';
+import {categories, formatBytes, formatPercent, percent, totals, filterItems} from './model.js';
+import {setupMailCleanup} from './mail.js';
 const $ = id => document.getElementById(id);
 const demo = document.body.dataset.demo === 'true';
 const state={items:[],selected:new Set(),quota:{},category:'all',page:0,pageSize:9,busy:false,scannedAt:0};

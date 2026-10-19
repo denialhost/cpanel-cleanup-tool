@@ -13,7 +13,7 @@ version = (ROOT / "VERSION").read_text(encoding="ascii").strip()
 if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
     raise SystemExit("Invalid VERSION")
 target = OUT / ("cct-" + version + ".tar.gz")
-files = [ROOT / n for n in ("README.md", "CHANGELOG.md", "VERSION", "preview.py", "install.json", "uninstall.json", "install.sh", "uninstall.sh", "bootstrap.sh", "tools/package.py")]
+files = [ROOT / n for n in ("README.md", "CHANGELOG.md", "VERSION", "preview.py", "package.json", "install.json", "uninstall.json", "install.sh", "uninstall.sh", "bootstrap.sh", "tools/package.py")]
 files += sorted(p for p in (ROOT / "tests").iterdir() if p.is_file())
 files += sorted(p for p in (ROOT / "plugin").iterdir() if p.is_file() and p.suffix != ".pyc")
 files += sorted(p for p in (ROOT / "docs/screenshots").iterdir() if p.is_file() and p.suffix.lower() in {".jpg", ".png"})
