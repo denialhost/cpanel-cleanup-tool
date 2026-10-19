@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {totals,filterItems,formatBytes,formatPercent} from '../plugin/model.mjs';
+const items=[{id:'a',name:'old.log',path:'/home/u/logs/old.log',category:'logs',modified_at:100,size_bytes:80,reclaimable_bytes:60,selectable:true},{id:'b',name:'backup.zip',path:'/home/u/backups/backup.zip',category:'backups',modified_at:200,size_bytes:90,reclaimable_bytes:90,selectable:false}];
+test('selection immediately updates recovered percentages and projected free space',()=>{const t=totals(items,new Set(['a']),{used_bytes:400,limit_bytes:1000});assert.equal(t.bytes,60);assert.equal(t.quotaPercent,6);assert.equal(t.usedPercent,15);assert.equal(t.projectedFree,660);});
+test('protected rows cannot enter totals, including manipulated selection',()=>{assert.equal(totals(items,new Set(['b']),{used_bytes:400,limit_bytes:1000}).bytes,0);});
+test('unlimited and unavailable quota never invent a percentage',()=>{const t=totals(items,new Set(['a']),{used_bytes:400,limit_bytes:null});assert.equal(t.quotaPercent,null);assert.equal(t.usedPercent,15);assert.equal(t.projectedFree,null);assert.equal(formatPercent(null),'—');});
+test('over-quota account must recover overage before free quota appears',()=>{assert.equal(totals(items,new Set(['a']),{used_bytes:1200,limit_bytes:1000}).projectedFree,0);});
+test('zero usage does not divide by zero',()=>{assert.equal(totals(items,new Set(['a']),{used_bytes:0,limit_bytes:1000}).usedPercent,null);});
+test('filters only change view, selected totals persist',()=>{assert.equal(filterItems(items,{category:'backups'}).length,1);assert.equal(totals(items,new Set(['a']),{used_bytes:400,limit_bytes:1000}).bytes,60);});
+test('search includes full location and category/date filters combine',()=>{assert.equal(filterItems(items,{search:'/backups/'}).length,1);assert.equal(filterItems(items,{category:'logs',age:7,now:8*86400}).length,1);});
+test('sparse allocation drives estimate, not logical file size',()=>{assert.equal(totals(items,new Set(['a']),{}).bytes,60);});
+test('binary units and locale are explicit',()=>{assert.equal(formatBytes(1024**3),'1 GiB');assert.equal(formatBytes(null),'—');assert.equal(formatBytes(0),'0 B');});

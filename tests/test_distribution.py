@@ -1,0 +1,77 @@
+"""Exercise the published package and the standalone installer's verifier."""
+import hashlib
+import io
+import subprocess
+import sys
+import tarfile
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class DistributionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.version = (ROOT / 'VERSION').read_text().strip()
+        cls.archive = ROOT / 'artifacts' / ('cct-' + cls.version + '.tar.gz')
+        subprocess.run([sys.executable, str(ROOT / 'tools/package.py')], check=True, capture_output=True)
+        cls.verifier = (ROOT / 'bootstrap.sh').read_text().split("<<'PY'\n", 1)[1].split('\nPY\n', 1)[0]
+
+    def test_published_assets_match_checksums_and_version(self):
+        for line in (ROOT / 'artifacts/SHA256SUMS').read_text().splitlines():
+            checksum, name = line.split()
+            self.assertEqual(hashlib.sha256((ROOT / 'artifacts' / name).read_bytes()).hexdigest(), checksum)
+        self.assertEqual((ROOT / 'artifacts/install-cct.sh').read_bytes(), (ROOT / 'bootstrap.sh').read_bytes().replace(b'\r\n', b'\n'))
+        with tarfile.open(self.archive) as archive:
+            self.assertEqual(archive.extractfile('cct/VERSION').read().decode().strip(), self.version)
+            self.assertEqual(archive.getmember('cct/install.sh').mode, 0o755)
+            self.assertEqual(archive.getmember('cct/plugin/index.live.cgi').mode, 0o755)
+            self.assertTrue(all(member.isfile() and member.name.startswith('cct/') and '..' not in Path(member.name).parts for member in archive))
+
+    def test_package_is_reproducible(self):
+        before = self.archive.read_bytes()
+        subprocess.run([sys.executable, str(ROOT / 'tools/package.py')], check=True, capture_output=True)
+        self.assertEqual(self.archive.read_bytes(), before)
+
+    def verify(self, entries=None, corrupt=False):
+        with tempfile.TemporaryDirectory(prefix='cct-release-test-', dir=ROOT / 'artifacts') as directory:
+            work = Path(directory)
+            destination = work / self.archive.name
+            if entries is None:
+                destination.write_bytes(self.archive.read_bytes())
+            else:
+                with tarfile.open(destination, 'w:gz') as archive:
+                    for name, kind in entries:
+                        member = tarfile.TarInfo(name)
+                        member.type = kind
+                        member.linkname = '/etc/passwd' if kind == tarfile.SYMTYPE else ''
+                        member.size = 0
+                        archive.addfile(member, io.BytesIO())
+            checksum = '0' * 64 if corrupt else hashlib.sha256(destination.read_bytes()).hexdigest()
+            (work / 'SHA256SUMS').write_text(checksum + '  ' + destination.name + '\n')
+            result = subprocess.run([sys.executable, '-I', '-', str(work), self.version], input=self.verifier, text=True, capture_output=True)
+            files = [str(path.relative_to(work)) for path in work.rglob('*') if path.is_file()]
+            return result, files
+
+    def test_verified_release_extracts_complete_installer(self):
+        result, files = self.verify()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('source/cct/install.sh', [name.replace('\\', '/') for name in files])
+
+    def test_corrupt_download_is_rejected_before_extraction(self):
+        result, files = self.verify(corrupt=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(any(name.startswith('source') for name in files))
+
+    def test_traversal_and_links_are_rejected_even_with_matching_checksum(self):
+        for name, kind in [('cct/../../escape', tarfile.REGTYPE), ('/tmp/escape', tarfile.REGTYPE), ('cct/link', tarfile.SYMTYPE)]:
+            with self.subTest(name=name):
+                result, files = self.verify([(name, kind)])
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(any('escape' in filename or filename.endswith('link') for filename in files))
+
+
+if __name__ == '__main__':
+    unittest.main()
