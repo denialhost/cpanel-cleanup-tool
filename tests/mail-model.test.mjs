@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
-import {presetDate,cutoffFromDate,cutoffLabel,canConfirmMail} from '../plugin/mail-model.mjs';
+import {presetDate,cutoffFromDate,cutoffLabel,canConfirmMail} from '../plugin/mail-model.js';
 test('one month is a calendar month, clamped at month end',()=>{
   assert.equal(presetDate('month',new Date(2026,2,31)),'2026-02-28');
   assert.equal(presetDate('month',new Date(2024,2,31)),'2024-02-29');
@@ -29,7 +29,7 @@ test('all folders requires its separate acknowledgement',()=>{
   assert.equal(canConfirmMail(value),false);assert.equal(canConfirmMail({...value,allAck:true}),true);
 });
 test('Santiago daylight saving preserves the actual start of a day without midnight',()=>{
-  const source="import {cutoffFromDate} from './plugin/mail-model.mjs'; console.log(JSON.stringify(cutoffFromDate('2026-09-06',new Date(2026,9,19))))";
+  const source="import {cutoffFromDate} from './plugin/mail-model.js'; console.log(JSON.stringify(cutoffFromDate('2026-09-06',new Date(2026,9,19))))";
   const cutoff=JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',source],{env:{...process.env,TZ:'America/Santiago'},encoding:'utf8'}));
   assert.equal(cutoff.start_hour,1);assert.equal(cutoff.utc_offset_minutes,-180);
   assert.equal(cutoffLabel(cutoff),'06/09/2026 a las 01:00 (UTC−03:00)');

@@ -11,7 +11,7 @@ if [[ -L "$TARGET" || ! -f "$TARGET/install.json" ]]; then
 fi
 /usr/local/cpanel/scripts/uninstall_plugin "$TARGET" --theme=jupiter
 # Only named plugin files; never recurse or touch any customer home directory.
-for filename in index.live.pl index.live.cgi cct_core.py cct_mail.py cct_backend.py cct_live.py python-path index.html styles.css app.mjs model.mjs mail.mjs mail-model.mjs icon.svg install.json uninstall.json VERSION uninstall.sh; do
+for filename in index.live.pl index.live.cgi cct_core.py cct_mail.py cct_backend.py cct_live.py python-path index.html styles.css app.js model.js mail.js mail-model.js app.mjs model.mjs mail.mjs mail-model.mjs icon.svg install.json uninstall.json VERSION uninstall.sh; do
     rm -f -- "$TARGET/$filename"
 done
 rmdir -- "$TARGET" 2>/dev/null || true

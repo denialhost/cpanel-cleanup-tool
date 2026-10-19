@@ -1,5 +1,12 @@
 # Cambios
 
+## 0.2.3
+
+- Usa archivos `.js` para los módulos del navegador. En cPanel 138, cpsrvd devolvía los archivos `.mjs` como HTML, por lo que el navegador no los ejecutaba y la interfaz quedaba en «Conectando cuenta…».
+- Actualiza las importaciones, el instalador, el desinstalador y la demostración local. Conserva los módulos ES sin dependencias de terceros.
+- Incluye la declaración de módulos de Node en el paquete y comprueba que toda la cadena de importaciones del navegador esté presente con extensiones compatibles.
+- Comprobado en un navegador con sesión real de cPanel 138.0 build 15: cuenta, cuota, análisis, recarga y lista de correo visibles, sin errores JavaScript. No se ejecutaron borrados de clientes.
+
 ## 0.2.2
 
 - Acepta `CONTENT_LENGTH` vacío o ausente en solicitudes sin cuerpo. cpsrvd puede enviarlo vacío al abrir el plugin, lo que provocaba el error genérico de conexión en v0.2.1.

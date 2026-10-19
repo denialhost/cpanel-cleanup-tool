@@ -1,5 +1,5 @@
-import {formatBytes,formatPercent,percent} from './model.mjs';
-import {localDateString,presetDate,cutoffFromDate,cutoffLabel,canConfirmMail} from './mail-model.mjs';
+import {formatBytes,formatPercent,percent} from './model.js';
+import {localDateString,presetDate,cutoffFromDate,cutoffLabel,canConfirmMail} from './mail-model.js';
 const folderLabel=name=>{
   const short=name.startsWith('INBOX.')?name.slice(6):name;
   return ({inbox:'Recibidos',sent:'Enviados',drafts:'Borradores',trash:'Papelera',spam:'Spam',junk:'Spam',archive:'Archivo'})[short.toLowerCase()]||short.replaceAll('.',' / ');

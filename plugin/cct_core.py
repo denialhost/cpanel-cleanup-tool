@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
 
-VERSION = "0.2.2"
+VERSION = "0.2.3"
 DAY = 86400
 MAX_ITEMS = 5000
 MAX_VISITED = 150000

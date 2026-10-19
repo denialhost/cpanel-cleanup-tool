@@ -1,6 +1,8 @@
 """Exercise the published package and the standalone installer's verifier."""
 import hashlib
 import io
+import json
+import re
 import subprocess
 import sys
 import tarfile
@@ -37,6 +39,23 @@ class DistributionTests(unittest.TestCase):
         before = self.archive.read_bytes()
         subprocess.run([sys.executable, str(ROOT / 'tools/package.py')], check=True, capture_output=True)
         self.assertEqual(self.archive.read_bytes(), before)
+
+    def test_browser_module_graph_is_packaged_with_cpanel_compatible_extensions(self):
+        with tarfile.open(self.archive) as archive:
+            source = archive.extractfile('cct/plugin/index.html').read().decode()
+            entry = re.search(r'<script type="module" src="([^"]+)"', source).group(1)
+            pending, seen = [entry], set()
+            while pending:
+                name = pending.pop()
+                if name in seen:
+                    continue
+                self.assertTrue(name.endswith('.js'), 'cpsrvd must serve each module with a JavaScript MIME type')
+                self.assertNotIn('/', name)
+                seen.add(name)
+                module = archive.extractfile('cct/plugin/' + name).read().decode()
+                pending.extend(re.findall(r"from ['\"]\./([^'\"]+)['\"]", module))
+            self.assertEqual(len(seen), 4)
+            self.assertEqual(json.loads(archive.extractfile('cct/package.json').read())['type'], 'module')
 
     def verify(self, entries=None, corrupt=False):
         with tempfile.TemporaryDirectory(prefix='cct-release-test-', dir=ROOT / 'artifacts') as directory:
