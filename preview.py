@@ -73,7 +73,7 @@ def fixture():
             "size_bytes":size,"reclaimable_bytes":size,"modified_at":now-age*86400,"fingerprint":[0,1000+n,size,int(now-age*86400)*10**9,0,1],
             "account":address,"uid":200+n,"uid_validity":"42","mailbox_guid":f"{n+1:032x}","mailbox":folder})
     return {"items":items,"mail_items":mail_items,"partial":False,"warnings":[],"scanned_at":now,"visited":8421,
-            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.2.0",
+            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.2.1",
             "quota":{"limit_bytes":limit,"used_bytes":used,"free_bytes":limit-used,"source":"demo"}}
 
 

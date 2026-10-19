@@ -9,8 +9,12 @@ if [[ ! -x /usr/local/cpanel/scripts/install_plugin || ! -d /usr/local/cpanel/ba
     echo 'Se requiere cPanel & WHM con el tema Jupiter.' >&2
     exit 1
 fi
+if [[ ! -x /usr/local/cpanel/3rdparty/bin/perl || ! -f /usr/local/cpanel/Cpanel/LiveAPI.pm ]]; then
+    echo 'No se encontró el entorno LiveAPI de Perl incluido con cPanel.' >&2
+    exit 1
+fi
 PYTHON="${CCT_PYTHON:-/usr/bin/python3}"
-if [[ "$PYTHON" != /* || "$PYTHON" == *[[:space:]]* || ! -x "$PYTHON" ]]; then
+if [[ ! "$PYTHON" =~ ^/[a-zA-Z0-9_./+-]+$ || ! -x "$PYTHON" ]]; then
     echo 'Define CCT_PYTHON como la ruta absoluta de Python 3.9 o superior, sin espacios.' >&2
     exit 1
 fi
@@ -47,23 +51,16 @@ cleanup() {
 }
 trap cleanup EXIT
 chmod 0755 "$STAGE"
-for filename in cct_core.py cct_mail.py index.html styles.css app.mjs model.mjs mail.mjs mail-model.mjs icon.svg; do
+for filename in cct_core.py cct_mail.py cct_backend.py cct_live.py index.html styles.css app.mjs model.mjs mail.mjs mail-model.mjs icon.svg; do
     install -m 0644 -o root -g root "$SOURCE/plugin/$filename" "$STAGE/$filename"
 done
-"$PYTHON" -I - "$SOURCE/plugin/index.live.cgi" "$STAGE/index.live.cgi" "$PYTHON" <<'PY'
-import os, pathlib, sys
-source, target, executable = sys.argv[1:]
-text = pathlib.Path(source).read_text(encoding='utf-8')
-text = '#!' + executable + ' -I\n' + text.split('\n', 1)[1]
-# Replace by atomic rename, never follow a pre-existing destination symlink.
-temporary = pathlib.Path(target + '.installing')
-fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o755)
-with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as stream:
-    stream.write(text)
-os.chown(temporary, 0, 0)
-os.chmod(temporary, 0o755)
-os.replace(temporary, target)
-PY
+for filename in index.live.pl index.live.cgi; do
+    install -m 0755 -o root -g root "$SOURCE/plugin/$filename" "$STAGE/$filename"
+done
+printf '%s\n' "$PYTHON" > "$STAGE/python-path"
+chmod 0644 "$STAGE/python-path"
+/usr/local/cpanel/3rdparty/bin/perl -c "$STAGE/index.live.pl"
+"$PYTHON" -I -c 'import ast, pathlib, sys; [ast.parse(path.read_text(encoding="utf-8")) for path in pathlib.Path(sys.argv[1]).glob("*.py")]' "$STAGE"
 for filename in install.json uninstall.json VERSION; do
     install -m 0644 -o root -g root "$SOURCE/$filename" "$STAGE/$filename"
 done
@@ -78,5 +75,5 @@ mv -T -- "$STAGE" "$TARGET"
 /usr/local/cpanel/scripts/install_plugin "$SOURCE" --theme=jupiter
 COMMITTED=1
 printf 'CCT v%s instalado.\n' "$(cat "$TARGET/VERSION")"
-printf '%s\n' 'CCT instalado. Habilita cct en WHM → Packages → Feature Manager.'
+printf '%s\n' 'CCT instalado. En Feature Manager busca "Limpieza de espacio Plugin" (cct).'
 printf '%s\n' 'Abre una cuenta de prueba en cPanel → Archivos → Limpieza de espacio.'

@@ -12,7 +12,7 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"plugin"))
@@ -148,11 +148,10 @@ class CoreTests(unittest.TestCase):
             result=core.delete_selected(self.account,self.api,[item],"ELIMINAR",scanner_factory=self.scanner({"items":[item],"warnings":[]}))
         self.assertEqual(result["deleted_ids"],[]);self.assertEqual(result["estimated_removed_bytes"],0)
     def test_uapi_arguments_not_interpreted_by_shell(self):
-        reply=SimpleNamespace(returncode=0,stdout='{"result":{"status":1,"data":[]}}')
-        with patch.object(core.subprocess,"run",return_value=reply) as run:
-            core.UAPI(self.account).call("Mailboxes","get_mailbox_status_list",account="user+test@domain")
-        args=run.call_args.args[0]
-        self.assertIn("account=user+test@domain",args);self.assertNotIn("shell",run.call_args.kwargs)
+        transport=Mock()
+        transport.call.return_value={"result":{"status":1,"data":[]}}
+        core.UAPI(self.account,transport).call("Mailboxes","get_mailbox_status_list",account="user+test@domain")
+        transport.call.assert_called_once_with("uapi","Mailboxes","get_mailbox_status_list",{"account":"user+test@domain"})
     @unittest.skipUnless(os.name=="posix","Real descriptor-based deletion requires Linux")
     def test_linux_real_delete_and_symlink_escape(self):
         p=self.file(".trash/target.zip")
@@ -166,7 +165,7 @@ class CoreTests(unittest.TestCase):
         core.unlink_candidate(self.account,item)
         self.assertFalse(p.exists());self.assertTrue(external.exists())
     def test_cgi_rejects_cross_origin_and_non_json_requests(self):
-        loader=importlib.machinery.SourceFileLoader("cct_entry",str(ROOT/"plugin/index.live.cgi"))
+        loader=importlib.machinery.SourceFileLoader("cct_entry",str(ROOT/"plugin/cct_backend.py"))
         spec=importlib.util.spec_from_loader(loader.name,loader);entry=importlib.util.module_from_spec(spec);loader.exec_module(entry)
         good={"REQUEST_METHOD":"POST","CONTENT_TYPE":"application/json","HTTP_X_CCT_REQUEST":"1","HTTP_HOST":"server:2083","SERVER_PORT":"2083","HTTP_ORIGIN":"https://server:2083"}
         entry.check_post(good)
@@ -175,14 +174,15 @@ class CoreTests(unittest.TestCase):
             with self.assertRaises(core.CleanupError):entry.check_post(env)
     def test_cache_invalidation_status_does_not_claim_recalculation(self):
         for status,expected in ((1,"cleared"),(0,"pending")):
-            reply=SimpleNamespace(returncode=0,stdout=json.dumps({"cpanelresult":{"event":{"result":1},"data":[{"status":status}]}}))
-            with patch.object(core.subprocess,"run",return_value=reply):
-                result=core.UAPI(self.account).clear_disk_cache()
+            transport=Mock()
+            transport.call.return_value={"cpanelresult":{"event":{"result":1},"data":[{"status":status}]}}
+            result=core.UAPI(self.account,transport).clear_disk_cache()
             self.assertEqual(result["status"],expected)
             self.assertFalse(result["retry_is_guaranteed"])
     def test_failed_cache_refresh_keeps_disclaimer(self):
-        with patch.object(core.subprocess,"run",side_effect=FileNotFoundError()):
-            result=core.UAPI(self.account).clear_disk_cache()
+        transport=Mock()
+        transport.call.side_effect=core.CleanupError("LiveAPI unavailable")
+        result=core.UAPI(self.account,transport).clear_disk_cache()
         self.assertEqual(result["status"],"unavailable")
         self.assertIn("no reflejar",result["message"])
     @unittest.skipUnless(os.name!="posix","Windows-specific fail-closed check")

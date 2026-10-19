@@ -28,6 +28,9 @@ class DistributionTests(unittest.TestCase):
             self.assertEqual(archive.extractfile('cct/VERSION').read().decode().strip(), self.version)
             self.assertEqual(archive.getmember('cct/install.sh').mode, 0o755)
             self.assertEqual(archive.getmember('cct/plugin/index.live.cgi').mode, 0o755)
+            self.assertEqual(archive.getmember('cct/plugin/index.live.pl').mode, 0o755)
+            self.assertIn(b'Cpanel::LiveAPI->new()', archive.extractfile('cct/plugin/index.live.pl').read())
+            self.assertEqual(archive.extractfile('cct/docs/screenshots/overview.jpg').read(), (ROOT / 'docs/screenshots/overview.jpg').read_bytes())
             self.assertTrue(all(member.isfile() and member.name.startswith('cct/') and '..' not in Path(member.name).parts for member in archive))
 
     def test_package_is_reproducible(self):

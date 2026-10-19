@@ -1,5 +1,14 @@
 # Cambios
 
+## 0.2.1
+
+- Corrige la conexión LiveAPI que podía añadir `Child failed to make LIVEAPI connection to cPanel` detrás del JSON.
+- Usa el módulo oficial de Perl para abrir, consultar y cerrar la sesión; el motor Python usa tuberías privadas y deja de ejecutar los clientes de línea de comandos dentro de LiveAPI.
+- Mantiene la comprobación de la función `cct` y un acceso de compatibilidad para la URL de v0.2.0.
+- Aclara que Feature Manager muestra **Limpieza de espacio Plugin** y puede seleccionarlo por defecto.
+- Añade pruebas del ciclo de conexión, respuestas JSON, errores de API y rechazo de funciones deshabilitadas. El proveedor LiveAPI se simula en estas pruebas.
+- Incluye las capturas de demostración en el paquete para conservar los enlaces del README.
+
 ## 0.2.0
 
 Primera publicación para pruebas en servidores cPanel/WHM con Jupiter.

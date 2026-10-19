@@ -4,7 +4,6 @@ import json
 import os
 import re
 import stat
-import subprocess
 import time
 from collections import defaultdict
 from contextlib import contextmanager
@@ -12,7 +11,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 DAY = 86400
 MAX_ITEMS = 5000
 MAX_VISITED = 150000
@@ -53,20 +52,24 @@ class Account:
 
 
 class UAPI:
-    def __init__(self, account, executable="/usr/local/cpanel/bin/uapi"):
+    def __init__(self, account, transport=None):
         self.account = account
-        self.executable = executable
+        self.transport = transport
 
     def call(self, module, function, **params):
-        args = [self.executable, "--output=json", "--user=" + self.account.username, module, function]
-        args.extend(f"{k}={v}" for k, v in params.items())
+        if self.transport is None:
+            raise CleanupError("Abre el plugin desde cPanel para usar su conexión LiveAPI.")
         try:
-            result = subprocess.run(args, capture_output=True, text=True, timeout=12, check=False)
-            document = json.loads(result.stdout)
-            response = document.get("result", document.get("cpanelresult", {}).get("result", {}))
-        except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+            document = self.transport.call("uapi", module, function, params)
+            if not isinstance(document, dict):
+                raise ValueError("Invalid API document")
+            response = document.get("cpanelresult", document)
+            response = response.get("result", response)
+            if not isinstance(response, dict):
+                raise ValueError("Invalid API result")
+        except (OSError, ValueError, TypeError, AttributeError) as exc:
             raise CleanupError(f"No se pudo consultar cPanel ({module}/{function}).") from exc
-        if result.returncode != 0 or response.get("status") != 1:
+        if response.get("status") != 1:
             messages = response.get("errors") or response.get("messages") or ["Operación no disponible."]
             raise CleanupError(f"{module}/{function}: " + "; ".join(map(str, messages)))
         return response.get("data")
@@ -77,15 +80,15 @@ class UAPI:
     def clear_disk_cache(self):
         """API 2 has no UAPI equivalent. Invalidation is not recalculation."""
         try:
-            result = subprocess.run(["/usr/local/cpanel/bin/cpapi2", "--output=json",
-                "--user=" + self.account.username, "DiskUsage", "clearcache"],
-                capture_output=True, text=True, timeout=12, check=False)
-            response = json.loads(result.stdout).get("cpanelresult", {})
+            if self.transport is None:
+                raise CleanupError("LiveAPI is not connected")
+            document = self.transport.call("api2", "DiskUsage", "clearcache", {})
+            response = document.get("cpanelresult", document)
             data = response.get("data") or []
-            if result.returncode != 0 or response.get("event", {}).get("result") != 1 or not data:
+            if response.get("event", {}).get("result") != 1 or not data:
                 raise ValueError("Cache refresh unavailable")
             status = "cleared" if data[0].get("status") == 1 else "pending" if data[0].get("status") == 0 else "unavailable"
-        except (OSError, ValueError, TypeError, KeyError, AttributeError, subprocess.TimeoutExpired):
+        except (CleanupError, OSError, ValueError, TypeError, KeyError, AttributeError):
             status = "unavailable"
         messages = {"cleared": "Se vació la caché de uso de disco de tu cuenta. cPanel puede tardar en recalcular sus indicadores.",
                     "pending": "cPanel indicó que el vaciado de caché está en curso. Sus indicadores pueden tardar en actualizarse.",
