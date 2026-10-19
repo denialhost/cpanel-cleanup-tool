@@ -3,6 +3,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -117,6 +118,31 @@ class CoreTests(unittest.TestCase):
             with patch.object(core,"unlink_candidate") as unlink:
                 result=core.delete_selected(self.account,self.api,[forged],"ELIMINAR",scanner_factory=self.scanner(inventory))
                 unlink.assert_not_called();self.assertEqual(len(result["failed"]),1)
+    @unittest.skipUnless(shutil.which('node'), 'Browser JSON round trip requires Node')
+    def test_browser_json_roundtrip_keeps_exact_file_identity_and_stale_rejection(self):
+        self.file('.trash/browser.zip')
+        inventory=self.inventory();item=inventory['items'][0]
+        script="let s='';for await(const c of process.stdin)s+=c;process.stdout.write(JSON.stringify(JSON.parse(s)));"
+        result=subprocess.run(['node','--input-type=module','-e',script],input=json.dumps(item),text=True,capture_output=True,check=True)
+        returned=json.loads(result.stdout)
+        self.assertEqual(returned['fingerprint'],item['fingerprint'])
+        with patch.object(core,'unlink_candidate') as unlink:
+            response=core.delete_selected(self.account,self.api,[returned],'ELIMINAR',scanner_factory=self.scanner(inventory))
+            unlink.assert_called_once();self.assertEqual(response['deleted_ids'],[item['id']])
+        returned['fingerprint'][3]=str(int(returned['fingerprint'][3])+1)
+        with patch.object(core,'unlink_candidate') as unlink:
+            response=core.delete_selected(self.account,self.api,[returned],'ELIMINAR',scanner_factory=self.scanner(inventory))
+            unlink.assert_not_called();self.assertEqual(len(response['failed']),1)
+
+    @unittest.skipUnless(shutil.which('node'), 'Browser JSON round trip requires Node')
+    def test_nanoseconds_and_large_inodes_are_not_rounded_in_browser_json(self):
+        stamp=1792417659853427123
+        st=SimpleNamespace(st_dev=2**54+1,st_ino=2**55+3,st_size=4096,st_mtime_ns=stamp,st_ctime_ns=stamp+7,st_nlink=1)
+        fingerprint=core.fingerprint(st)
+        script="let s='';for await(const c of process.stdin)s+=c;process.stdout.write(JSON.stringify(JSON.parse(s)));"
+        returned=json.loads(subprocess.run(['node','--input-type=module','-e',script],input=json.dumps(fingerprint),text=True,capture_output=True,check=True).stdout)
+        self.assertEqual(returned,fingerprint)
+        self.assertEqual(int(returned[3]),stamp)
     def test_backup_requires_separate_acknowledgement(self):
         self.file("backups/old.zip",80);self.file("backups/new.zip",1)
         inventory=self.inventory();item=next(i for i in inventory["items"] if i["selectable"])

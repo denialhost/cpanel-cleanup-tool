@@ -51,7 +51,7 @@ cleanup() {
 }
 trap cleanup EXIT
 chmod 0755 "$STAGE"
-for filename in cct_core.py cct_mail.py cct_backend.py cct_live.py index.html styles.css app.js model.js mail.js mail-model.js icon.svg; do
+for filename in cct_core.py cct_mail.py cct_backend.py cct_live.py index.html styles.css app.js model.js mail.js mail-model.js activity.js icon.svg; do
     install -m 0644 -o root -g root "$SOURCE/plugin/$filename" "$STAGE/$filename"
 done
 for filename in index.live.pl index.live.cgi; do

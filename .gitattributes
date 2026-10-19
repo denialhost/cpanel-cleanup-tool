@@ -4,3 +4,4 @@
 *.py text eol=lf
 *.tar.gz binary
 *.jpg binary
+*.png binary

@@ -1,5 +1,6 @@
 import {formatBytes,formatPercent,percent} from './model.js';
 import {localDateString,presetDate,cutoffFromDate,cutoffLabel,canConfirmMail} from './mail-model.js';
+import {renderDetails,resultSummary} from './activity.js';
 const folderLabel=name=>{
   const short=name.startsWith('INBOX.')?name.slice(6):name;
   return ({inbox:'Recibidos',sent:'Enviados',drafts:'Borradores',trash:'Papelera',spam:'Spam',junk:'Spam',archive:'Archivo'})[short.toLowerCase()]||short.replaceAll('.',' / ');
@@ -46,10 +47,11 @@ export function setupMailCleanup(host) {
   }
   async function loadAccounts(){
     if(host.isBusy()&&!state.loading)return;
+    const ticket=host.activity.begin({title:'Preparando tus correos',message:'Espera mientras obtenemos las cuentas de correo.'});
     state.loading=true;invalidate();renderAccounts();controls();
     try{const data=await host.request('mail_accounts');state.accounts=data.accounts;const allowed=new Set(data.accounts.map(a=>a.address));state.selected=new Set([...state.selected].filter(a=>allowed.has(a)));}
     catch(err){notice(err.message,true);}
-    finally{state.loading=false;renderAccounts();controls();}
+    finally{state.loading=false;renderAccounts();controls();host.activity.end(ticket);}
   }
   function renderPreview(){
     const result=state.preview;$('mail-preview-empty').hidden=true;$('mail-preview-result').hidden=false;
@@ -66,15 +68,16 @@ export function setupMailCleanup(host) {
       detail.append(folders);$('mail-preview-accounts').append(detail);
     }
     const warnings=[...(result.warnings||[]),...(result.quota?.error?[result.quota.error]:[])];
-    $('mail-preview-warnings').replaceChildren();const list=el('ul');for(const warning of warnings)list.append(el('li','',warning));$('mail-preview-warnings').append(list);$('mail-preview-warnings').hidden=!warnings.length;
+    renderDetails($('mail-preview-warnings'),warnings);
     controls();
   }
   async function preview(){
     if(host.isBusy()||$('mail-preview').disabled)return;
     let cutoff;try{cutoff=currentCutoff();}catch(err){notice(err.message,true);return;}
-    host.setBusy(true);invalidate();notice('Identificando mensajes anteriores a la fecha. Todavía no se elimina ningún correo.');
+    const ticket=host.activity.begin({title:'Revisando correos antiguos',message:'Espera mientras generamos la vista previa de los mensajes.'});
+    host.setBusy(true);invalidate();
     try{state.preview=await host.request('mail_preview',{accounts:[...state.selected],cutoff,scope:scope()});host.onQuota(state.preview.quota);renderPreview();$('mail-notice').hidden=true;}
-    catch(err){notice(err.message,true);}finally{host.setBusy(false);}
+    catch(err){notice(err.message,true);}finally{host.setBusy(false);host.activity.end(ticket);}
   }
   function review(){
     if(!state.preview?.items.length||host.isBusy())return;
@@ -93,19 +96,20 @@ export function setupMailCleanup(host) {
     event.preventDefault();if($('mail-confirm-delete').disabled||!state.preview)return;
     const frozen=state.preview,ack=$('mail-all-ack').checked;
     $('mail-confirmation').close();host.setBusy(true);
+    const ticket=host.activity.begin({title:host.demo?'Simulando borrado':'Eliminando correos',message:'Validando los mensajes confirmados y procesando tu selección.',completed:0,total:frozen.items.length});
     let deleted=0,estimated=0,failures=[];const warnings=[];
     try{
       for(let offset=0;offset<frozen.items.length;offset+=250){
-        notice(`${host.demo?'Simulando borrado':'Eliminando correos'}… ${offset} de ${frozen.items.length} procesados.`);
         const result=await host.request('mail_delete',{items:frozen.items.slice(offset,offset+250),cutoff:frozen.cutoff,scope:frozen.scope,confirm:'ELIMINAR CORREOS',irreversible_ack:true,all_folders_ack:ack});
         deleted+=result.deleted_ids.length;estimated+=result.estimated_removed_bytes;failures.push(...result.failed);warnings.push(...(result.warnings||[]));if(result.quota?.error)warnings.push(result.quota.error);host.onResult(result);host.cacheNotice(result.cache_refresh);
+        host.activity.update(ticket,{completed:Math.min(offset+250,frozen.items.length),message:`${deleted} eliminados · ${failures.length} pendientes. Continuamos con tu selección.`});
       }
       invalidate();
-      notice(`${host.demo?'Simulación terminada. ':''}${deleted} correos eliminados definitivamente. Ahorro estimado: ${formatBytes(estimated)}.${failures.length?` ${failures.length} mensajes no pudieron eliminarse.`:''} La cuota se volvió a consultar y puede actualizarse con retraso. Vuelve a revisar para comprobar si quedan más mensajes.`,!!failures.length);
+      notice(resultSummary({deleted,bytes:estimated,failed:failures.length,mail:true,demo:host.demo}),!!failures.length);
       if(failures.length||warnings.length){$('mail-preview-result').hidden=false;$('mail-preview-caption').textContent='Resultado de la operación';$('mail-message-total').textContent=String(deleted);$('mail-estimate').textContent=formatBytes(estimated);$('mail-estimate-percent').textContent='Tamaño estimado de los mensajes eliminados; la cuota real se informa arriba.';$('mail-preview-accounts').replaceChildren();$('mail-preview-empty').hidden=true;
-        const list=el('ul');for(const text of [...new Set(warnings),...failures.map(f=>`${f.path}: ${f.error}`)])list.append(el('li','',text));$('mail-preview-warnings').replaceChildren(list);$('mail-preview-warnings').hidden=false;}
-    }catch(err){invalidate();notice(`Eliminación verificada: ${deleted} correos. No se pudo confirmar el último lote. ${err.message} Vuelve a revisar antes de reintentar.`,true);}
-    finally{host.setBusy(false);}
+        renderDetails($('mail-preview-warnings'),warnings,failures);}
+    }catch(err){invalidate();notice(resultSummary({deleted,mail:true,demo:host.demo,interrupted:true}),true);$('mail-preview-result').hidden=false;$('mail-preview-empty').hidden=true;$('mail-preview-accounts').replaceChildren();$('mail-message-total').textContent=String(deleted);$('mail-estimate').textContent=formatBytes(estimated);$('mail-preview-caption').textContent='Resultado parcial';$('mail-estimate-percent').textContent='Solo se cuentan las eliminaciones confirmadas.';renderDetails($('mail-preview-warnings'),[...warnings,err.message],failures);}
+    finally{host.setBusy(false);host.activity.end(ticket);}
   }
   $('mail-preset').addEventListener('change',updateDate);$('mail-date').addEventListener('change',updateDate);
   for(const input of document.querySelectorAll('input[name="mail-scope"]'))input.addEventListener('change',()=>{invalidate();controls();});
