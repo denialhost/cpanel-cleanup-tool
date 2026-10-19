@@ -4,6 +4,14 @@ Plugin v0.2.0 para **cPanel con tema Jupiter**, instalado por el administrador d
 
 Muestra cuota asignada, espacio ocupado/libre y candidatos con nombre, ubicación, bloques ocupados y fecha de modificación. Al seleccionar elementos calcula al instante el ahorro estimado, su porcentaje de la cuota, su porcentaje del uso actual y el espacio libre proyectado. Después del borrado consulta nuevamente la cuota; no presenta el ahorro estimado como recuperación real verificada.
 
+## Capturas de pantalla
+
+Capturas de la **demostración con datos ficticios**. La limpieza es una simulación; estas imágenes no corresponden a cuentas ni a un servidor cPanel real.
+
+| Revisión de espacio y selección de archivos | Limpieza de correos por cuenta y fecha |
+| --- | --- |
+| [![Cuota, archivos candidatos y ahorro estimado al seleccionar elementos](docs/screenshots/overview.jpg)](docs/screenshots/overview.jpg) | [![Selección de cuentas, antigüedad de los correos y vista previa antes del borrado](docs/screenshots/mail-cleanup.jpg)](docs/screenshots/mail-cleanup.jpg) |
+
 ## Instalación desde GitHub
 
 Repositorio: [denialhost/cpanel-cleanup-tool](https://github.com/denialhost/cpanel-cleanup-tool). Descargas: [versiones publicadas](https://github.com/denialhost/cpanel-cleanup-tool/releases).
