@@ -107,9 +107,16 @@ class BridgeIntegrationTests(unittest.TestCase):
         return headers, payload.decode('utf-8') if action == 'page' else json.loads(payload), calls
 
     def test_page_get_accepts_empty_content_length_from_cpsrvd(self):
-        headers, page, calls = self.request(action='page', content_length='')
+        headers, page, calls = self.request(action='page', content_length='', extra={'QUERY_STRING':'embedded=1'})
         self.assertIn(b'Status: 200', headers)
         self.assertIn('<!doctype html>', page.lower())
+        self.assertEqual(calls, ['new', 'Features/has_feature', 'end'])
+
+    def test_old_bookmarks_redirect_to_native_shell_after_feature_check(self):
+        headers, page, calls = self.request(action='page', content_length='')
+        self.assertIn(b'Status: 302 Found', headers)
+        self.assertIn(b'Location: home.html', headers)
+        self.assertEqual(page, '')
         self.assertEqual(calls, ['new', 'Features/has_feature', 'end'])
 
     def test_get_accepts_missing_content_length(self):
