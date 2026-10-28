@@ -4,6 +4,7 @@ import json
 import os
 import re
 import stat
+import subprocess
 import time
 from collections import defaultdict
 from contextlib import contextmanager
@@ -11,7 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
 
-VERSION = "0.2.4"
+VERSION = "0.2.5"
 DAY = 86400
 MAX_ITEMS = 5000
 MAX_VISITED = 150000
@@ -123,6 +124,83 @@ def get_quota(api):
         return normalize_quota(api.call("Quota", "get_quota_info"))
     except CleanupError as exc:
         return {"used_bytes": None, "limit_bytes": None, "free_bytes": None, "error": str(exc)}
+
+
+def measure_mail_usage(account):
+    """Count physical blocks once per inode; never read message contents."""
+    try:
+        # The inherited directory descriptor anchors du to this account's mail/.
+        # -H follows only that descriptor argument, never symlinks within mail/.
+        with open_parent(account, "mail/.cct-usage") as (mail_fd, _):
+            result = subprocess.run(
+                ["/usr/bin/du", "--summarize", "--block-size=1", "--one-file-system",
+                 "--dereference-args", "--", f"/proc/self/fd/{mail_fd}"],
+                pass_fds=(mail_fd,), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                timeout=8, check=True)
+        parts = result.stdout.split(maxsplit=1)
+        if not parts or not parts[0].isdigit():
+            raise ValueError("Physical mail usage unavailable")
+        return int(parts[0])
+    except FileNotFoundError:
+        # A missing mail directory is empty, but a missing utility is unavailable.
+        if not (account.home / "mail").exists():
+            return 0
+        raise
+
+
+def normalize_storage(data, physical_mail_bytes):
+    """Replace cPanel's virtual mail counters with physical allocated blocks."""
+    def size(value):
+        number = _nonnegative(value)
+        if number != number.to_integral_value():
+            raise ValueError("Invalid byte counter")
+        return int(number)
+
+    home = data["homedir"]
+    children = home["contents"]
+    if not isinstance(children, list):
+        raise ValueError("Directory summary unavailable")
+    counters = {"mail": size(physical_mail_bytes) + size(data["mailman"]),
+                "web": 0, "databases": size(data["mysql"]) + size(data["pgsql"]),
+                "backups": 0, "logs": 0, "other": 0}
+    names = set()
+    virtual_mail_bytes = 0
+    for child in children:
+        name = child["name"]
+        if not isinstance(name, str) or name in names:
+            raise ValueError("Invalid directory summary")
+        names.add(name)
+        if name == "mail":
+            virtual_mail_bytes = size(child["user_contained_usage"])
+        category = ("web" if name in {"public_html", "public_ftp"} else
+                    "backups" if name in BACKUP_DIRS else "logs" if name == "logs" else None)
+        if category:
+            counters[category] += size(child["user_contained_usage"])
+    # cPanel injects logical mailbox counters into both mail/ and home totals.
+    # Remove that virtual subtree before combining it with physical mail blocks.
+    non_mail_bytes = size(home["user_contained_usage"]) - virtual_mail_bytes
+    if non_mail_bytes < 0:
+        raise ValueError("Inconsistent directory counters")
+    counters["other"] = max(0, non_mail_bytes - counters["web"] - counters["backups"] - counters["logs"])
+    return {"status": "ok", "categories": [{"key": key, "bytes": value} for key, value in counters.items()],
+            "total_bytes": sum(counters.values()), "source": "DiskUsage/fetchdiskusagewithextras",
+            "basis": "allocated_bytes",
+            "checked_at": int(time.time())}
+
+
+def get_storage(api):
+    try:
+        if api.transport is None:
+            raise CleanupError("LiveAPI is not connected")
+        document = api.transport.call("api2", "DiskUsage", "fetchdiskusagewithextras", {})
+        response = document.get("cpanelresult", document)
+        rows = response.get("data")
+        if response.get("event", {}).get("result") != 1 or not isinstance(rows, list) or len(rows) != 1:
+            raise ValueError("Storage summary unavailable")
+        return normalize_storage(rows[0], measure_mail_usage(api.account))
+    except (CleanupError, OSError, ValueError, TypeError, KeyError, AttributeError, InvalidOperation, subprocess.SubprocessError):
+        return {"status": "unavailable", "categories": [],
+                "message": "El desglose no está disponible por ahora. Puedes seguir revisando y limpiando tu cuenta."}
 
 
 def fingerprint(st):

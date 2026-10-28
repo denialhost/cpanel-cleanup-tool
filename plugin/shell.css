@@ -1,0 +1,18 @@
+/* Only the plugin's frame. Jupiter owns the surrounding navigation and styles. */
+#cct-app {
+  display: block;
+  width: 100%;
+  height: calc(100vh - 190px);
+  height: calc(100dvh - 190px);
+  min-height: 480px;
+  border: 0;
+  border-radius: 8px;
+  background: #f5f6f2;
+}
+@media (max-width: 767px) {
+  #cct-app {
+    height: calc(100vh - 160px);
+    height: calc(100dvh - 160px);
+    min-height: 420px;
+  }
+}

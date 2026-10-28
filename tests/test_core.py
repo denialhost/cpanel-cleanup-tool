@@ -34,6 +34,73 @@ class FakeAPI:
 
 
 class CoreTests(unittest.TestCase):
+    def storage_document(self):
+        return {'homedir':{'user_contained_usage':1000,'contents':[
+            {'name':'mail','user_contained_usage':120},
+            {'name':'public_html','user_contained_usage':300},
+            {'name':'backups','user_contained_usage':100},
+            {'name':'logs','user_contained_usage':50},
+            {'name':'.trash','user_contained_usage':40}]},
+            'mailaccounts':100,'mailarchives':20,'mailman':30,'mysql':80,'pgsql':10}
+
+    def test_storage_uses_native_bytes_without_counting_mail_twice(self):
+        result=core.normalize_storage(self.storage_document(),120)
+        sizes={item['key']:item['bytes'] for item in result['categories']}
+        self.assertEqual(sizes,{'mail':150,'web':300,'databases':90,'backups':100,'logs':50,'other':430})
+        self.assertEqual(result['total_bytes'],1120)
+
+    def test_storage_does_not_reclassify_backups_nested_inside_web(self):
+        document=self.storage_document()
+        document['homedir']['contents'][1]['contents']=[{'name':'backups','user_contained_usage':200}]
+        result=core.normalize_storage(document,120)
+        self.assertEqual(next(row['bytes'] for row in result['categories'] if row['key']=='backups'),100)
+        self.assertEqual(result['total_bytes'],1120)
+
+    def test_storage_unavailable_or_invalid_values_are_not_reported_as_zero(self):
+        transport=Mock();api=core.UAPI(None,transport)
+        for value in (None,-1,'NaN','unknown',1.5):
+            document=self.storage_document();document['mysql']=value
+            transport.call.return_value={'cpanelresult':{'event':{'result':1},'data':[document]}}
+            with patch.object(core,'measure_mail_usage',return_value=120):
+                self.assertEqual(core.get_storage(api)['status'],'unavailable')
+        self.assertEqual(core.get_storage(FakeAPI())['status'],'unavailable')
+
+    def test_storage_calls_only_native_read_api_and_rejects_failed_status(self):
+        transport=Mock();api=core.UAPI(None,transport)
+        transport.call.return_value={'cpanelresult':{'event':{'result':1},'data':[self.storage_document()]}}
+        with patch.object(core,'measure_mail_usage',return_value=120):
+            self.assertEqual(core.get_storage(api)['status'],'ok')
+        transport.call.assert_called_once_with('api2','DiskUsage','fetchdiskusagewithextras',{})
+        transport.call.return_value={'cpanelresult':{'event':{'result':0},'data':[]}}
+        self.assertEqual(core.get_storage(api)['categories'],[])
+
+    def test_virtual_mail_counters_are_removed_before_counting_physical_mail(self):
+        document=self.storage_document()
+        document['homedir']['user_contained_usage']=1000000880
+        document['homedir']['contents'][0]['user_contained_usage']=1000000000
+        document['mailaccounts']=1000000000
+        result=core.normalize_storage(document,120)
+        self.assertEqual(result['basis'],'allocated_bytes')
+        self.assertEqual(result['total_bytes'],1120)
+        self.assertEqual(next(row['bytes'] for row in result['categories'] if row['key']=='mail'),150)
+
+    def test_physical_mail_timeout_never_falls_back_to_virtual_mail_size(self):
+        transport=Mock();api=core.UAPI(None,transport)
+        transport.call.return_value={'cpanelresult':{'event':{'result':1},'data':[self.storage_document()]}}
+        with patch.object(core,'measure_mail_usage',side_effect=subprocess.TimeoutExpired('du',8)):
+            result=core.get_storage(api)
+        self.assertEqual(result['status'],'unavailable')
+        self.assertEqual(result['categories'],[])
+
+    @unittest.skipUnless(os.name=='posix' and Path('/usr/bin/du').exists(),'Physical block measurement requires Linux du')
+    def test_physical_mail_measurement_counts_hardlinks_once_and_does_not_follow_symlinks(self):
+        message=self.file('mail/cur/message')
+        os.link(message,message.with_name('same-inode'))
+        outside=self.file('outside-private-file')
+        link=message.with_name('outside-link');os.symlink(outside,link)
+        expected=sum(core.allocated(path.lstat()) for path in [self.home/'mail',message.parent,message,link])
+        self.assertEqual(core.measure_mail_usage(self.account),expected)
+
     def setUp(self):
         temporary_root=ROOT/"artifacts"
         temporary_root.mkdir(exist_ok=True)

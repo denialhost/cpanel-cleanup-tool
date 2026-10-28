@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>CCT · Limpieza de espacio</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css">
-  <script type="module" src="app.js"></script>
+  <link rel="stylesheet" href="styles.css?v=0.2.5-storage2">
+  <script type="module" src="app.js?v=0.2.5-storage2"></script>
 </head>
 <body data-demo="false">
   <div id="demo-banner" class="demo-banner" hidden><span>VISTA PREVIA · Datos de ejemplo. La limpieza es una simulación.</span><button id="reset-demo">Reiniciar demo ↻</button></div>
@@ -22,7 +22,17 @@
       <article class="stat"><div class="stat-label">ESPACIO LIBRE <span class="stat-symbol">◌</span></div><strong id="quota-free">—</strong><span id="quota-free-percent">Disponible en tu cuenta</span></article>
       <article class="stat recoverable"><div class="stat-label">PODRÍAS RECUPERAR <span class="stat-symbol">✧</span></div><strong id="recoverable">—</strong><span id="recoverable-detail">Analizando candidatos…</span></article>
     </section>
-    <section class="usage-panel" aria-labelledby="usage-title"><div class="usage-top"><h2 id="usage-title">Tu espacio, antes y después</h2><span id="usage-caption">Consultando cuota</span></div><div class="usage-bar" role="img" id="usage-bar" aria-label="Uso de espacio"><div id="bar-used" class="bar-used"></div><div id="bar-selected" class="bar-selected"></div></div><div class="usage-bottom"><div class="legend"><span><i class="dot occupied"></i>Ocupado después de limpiar</span><span><i class="dot selected"></i>Tu selección</span><span><i class="dot free"></i>Libre actual</span></div><span id="projected-label">Selecciona archivos para ver el cambio</span></div></section>
+    <section class="usage-panel" aria-labelledby="usage-title">
+      <div class="usage-top"><h2 id="usage-title">Así se distribuye tu espacio</h2><span id="usage-caption">Consultando cuota</span></div>
+      <div id="storage-bar" class="storage-bar" role="img" aria-label="Consultando uso por categoría" aria-busy="true"></div>
+      <div id="storage-legend" class="storage-legend"></div>
+      <div class="storage-meta"><p id="storage-note" role="status">Consultando el uso por categoría…</p><button id="storage-refresh" class="text-button" type="button" disabled>Actualizar desglose ↻</button></div>
+      <div id="usage-projection" class="usage-projection" hidden>
+        <div class="usage-top"><h3>Con tu selección</h3><span id="projected-label">Selecciona archivos para ver el cambio</span></div>
+        <div class="usage-bar" role="img" id="usage-bar" aria-label="Uso de espacio proyectado"><div id="bar-used" class="bar-used"></div><div id="bar-selected" class="bar-selected"></div></div>
+        <div class="usage-bottom"><div class="legend"><span><i class="dot occupied"></i>Ocupado después de limpiar</span><span><i class="dot selected"></i>Tu selección</span><span><i class="dot free"></i>Libre actual</span></div></div>
+      </div>
+    </section>
     <div id="cache-notice" class="cache-notice" role="status" hidden><strong>Actualización de cPanel</strong><p id="cache-message"></p><span id="cache-retry"></span></div>
     <div class="workspace">
       <section class="explorer" aria-labelledby="explorer-title">
@@ -30,10 +40,10 @@
         <div class="category-tabs" id="categories" role="group" aria-label="Filtrar por categoría"></div>
         <div class="toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Buscar archivo o ubicación…" aria-label="Buscar archivo o ubicación"></label><select id="age" aria-label="Filtrar por última modificación"><option value="0">Cualquier fecha</option><option value="7">Más de 7 días</option><option value="30">Más de 30 días</option><option value="90">Más de 90 días</option></select><select id="sort" aria-label="Ordenar archivos"><option value="size">Mayor tamaño primero</option><option value="oldest">Más antiguos primero</option><option value="name">Nombre A–Z</option></select></div>
         <div class="selection-strip"><span id="visible-count">Cargando…</span><button id="clear-selection" class="text-button" disabled>Limpiar selección</button></div>
-        <div class="table-wrap"><table><thead><tr><th class="check-cell"><input type="checkbox" id="select-all" aria-label="Seleccionar candidatos visibles"></th><th>Archivo / ubicación</th><th>Última modificación</th><th class="size-cell">En disco</th><th>Revisión</th></tr></thead><tbody id="file-list"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th class="check-cell"><input type="checkbox" id="select-all" aria-label="Seleccionar candidatos visibles"></th><th>Archivo o grupo / ubicación</th><th>Última modificación</th><th class="size-cell">En disco</th><th>Revisión</th></tr></thead><tbody id="file-list"></tbody></table></div>
         <div id="empty" class="empty" hidden><div>◌</div><h3>No hay archivos con este filtro</h3><p>Prueba otra categoría, fecha o búsqueda.</p></div>
         <div class="table-footer"><span id="page-info">—</span><div><button id="previous-page" class="page-button" aria-label="Página anterior">←</button><button id="next-page" class="page-button" aria-label="Página siguiente">→</button></div></div>
-        <div class="explorer-note"><span aria-hidden="true">ⓘ</span><p>Los candidatos requieren revisión. Conservamos el respaldo más reciente de cada carpeta y los registros que podrían estar activos. No se incluyen sitios completos ni bases de datos en uso.</p></div>
+        <div class="explorer-note"><span aria-hidden="true">ⓘ</span><p>Solo mostramos candidatos a limpieza. Spam y papeleras se agrupan por cuenta; los filtros definen los elementos incluidos en cada grupo. La fecha del grupo corresponde a su última modificación. Conservamos los respaldos más recientes y los registros que podrían estar activos.</p></div>
       </section>
       <aside class="plan" aria-labelledby="plan-title"><div class="plan-eyebrow"><i class="dot selected"></i> TU PLAN DE LIMPIEZA</div><h2 id="plan-title">Un poco más de aire.</h2><p>Marca los elementos que revisaste y mira cómo cambia tu cuenta.</p><div class="plan-amount"><strong id="selected-size" aria-live="polite">0 B</strong><span>de ahorro estimado</span></div><div class="plan-percent"><span><strong id="selected-quota-percent">0 %</strong> de tu cuota</span><span><strong id="selected-used-percent">0 %</strong> de lo ocupado</span></div><div class="plan-breakdown" id="selection-breakdown"></div><div class="plan-after"><span>Libre después de limpiar</span><strong id="projected-free">—</strong></div><button id="review" class="button primary" disabled>Revisar y liberar espacio <span aria-hidden="true">↗</span></button><div class="plan-caption"><span id="selected-count">Ningún elemento seleccionado</span><span id="hidden-selected"></span></div><div class="plan-note"><span aria-hidden="true">♧</span><p>Primero revisas. Después confirmas.<br>El borrado es permanente.</p></div><button id="refresh-quota" class="text-button refresh-quota">Actualizar cuota de cPanel ↻</button></aside>
     </div>

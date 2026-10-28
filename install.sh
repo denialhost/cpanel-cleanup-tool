@@ -13,12 +13,33 @@ if [[ ! -x /usr/local/cpanel/3rdparty/bin/perl || ! -f /usr/local/cpanel/Cpanel/
     echo 'No se encontró el entorno LiveAPI de Perl incluido con cPanel.' >&2
     exit 1
 fi
-PYTHON="${CCT_PYTHON:-/usr/bin/python3}"
-if [[ ! "$PYTHON" =~ ^/[a-zA-Z0-9_./+-]+$ || ! -x "$PYTHON" ]]; then
-    echo 'Define CCT_PYTHON como la ruta absoluta de Python 3.9 o superior, sin espacios.' >&2
-    exit 1
-fi
-"$PYTHON" -I -c 'import sys; assert sys.version_info >= (3,9), "Se requiere Python 3.9 o superior"'
+# Probe only fixed system locations; an explicit CCT_PYTHON must never be ignored.
+select_python() {
+    local candidate
+    if [[ ${CCT_PYTHON+x} ]]; then
+        set -- "$CCT_PYTHON"
+    fi
+    for candidate in "$@"; do
+        if [[ "$candidate" =~ ^/[a-zA-Z0-9_./+-]+$ && -x "$candidate" ]] &&
+            "$candidate" -I -c 'import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)' >/dev/null 2>&1; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    echo 'No se encontró Python 3.9 o superior utilizable por CCT.' >&2
+    if [[ ${CCT_PYTHON+x} ]]; then
+        echo 'La ruta indicada en CCT_PYTHON no es válida o su versión es incompatible.' >&2
+    fi
+    echo 'Si ya está instalado, indica su ruta: CCT_PYTHON=/usr/bin/python3.12 bash install-cct.sh [versión].' >&2
+    echo 'El instalador no modifica el Python predeterminado ni instala paquetes del sistema.' >&2
+    return 1
+}
+PYTHON="$(select_python /usr/bin/python3 /usr/bin/python3.[0-9][0-9] /usr/bin/python3.[0-9] \
+    /usr/local/cpanel/3rdparty/bin/python3 /usr/local/bin/python3 \
+    /usr/local/bin/python3.[0-9][0-9] /usr/local/bin/python3.[0-9])"
+# Pass the same runtime to the downloaded installer, including older releases.
+export CCT_PYTHON="$PYTHON"
+printf 'Python seleccionado: %s\n' "$PYTHON"
 SOURCE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 TARGET=/usr/local/cpanel/base/frontend/jupiter/cct
 if [[ -L "$TARGET" || ( -e "$TARGET" && ! -d "$TARGET" ) ]]; then
@@ -51,9 +72,11 @@ cleanup() {
 }
 trap cleanup EXIT
 chmod 0755 "$STAGE"
-for filename in cct_core.py cct_mail.py cct_backend.py cct_live.py index.html styles.css app.js model.js mail.js mail-model.js activity.js icon.svg; do
+for filename in cct_core.py cct_mail.py cct_backend.py cct_live.py home.html.tt shell.css index.html styles.css app.js model.js mail.js mail-model.js activity.js icon.svg; do
     install -m 0644 -o root -g root "$SOURCE/plugin/$filename" "$STAGE/$filename"
 done
+# Jupiter resolves page_stylesheets to their .min.css variant in production.
+install -m 0644 -o root -g root "$SOURCE/plugin/shell.css" "$STAGE/shell.min.css"
 for filename in index.live.pl index.live.cgi; do
     install -m 0755 -o root -g root "$SOURCE/plugin/$filename" "$STAGE/$filename"
 done

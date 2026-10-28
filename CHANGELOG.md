@@ -1,5 +1,18 @@
 # Cambios
 
+## 0.2.5
+
+- Detecta Python 3.9+ en rutas del sistema aunque el Python predeterminado sea antiguo, como puede ocurrir en AlmaLinux 8. Conserva la selección al instalar el paquete descargado y muestra un diagnóstico breve si falta una versión compatible.
+- Añade una barra de uso por categoría, cargada por separado, y conserva otra para la proyección del ahorro seleccionado. Mide el correo por bloques físicos sin leer mensajes, con un límite de 8 segundos.
+- Excluye los contadores virtuales de correo que cPanel inyecta en sus totales. Oculta cualquier desglose inconsistente y mantiene el ocupado/libre confirmado por la cuota.
+
+- Integra el acceso principal con la plantilla oficial de Jupiter: conserva cabecera, barra lateral y navegación de cPanel. Los enlaces antiguos redirigen al nuevo marco.
+- Aumenta la letra de tablas, rutas, filtros, formularios y avisos, con tamaños relativos al navegador y distribución adaptable al espacio disponible.
+- Oculta los elementos protegidos en la lista; siguen excluidos del ahorro y del borrado.
+- Agrupa la papelera de archivos y el spam y la papelera de correo por cuenta, con cantidad, tamaño total y última modificación. Los filtros se aplican a los elementos antes de agrupar.
+- Conserva la selección y las validaciones individuales de cada archivo o mensaje, aunque se presenten como un grupo; la confirmación también resume los grupos.
+- Añade regresiones de agrupación, instalación del marco y redirección, y renueva las capturas con datos ficticios.
+
 ## 0.2.4
 
 - Muestra una ventana con tres puntos animados al analizar la cuenta, consultar la cuota y preparar el correo. No inventa porcentajes cuando aún no se conoce el total.

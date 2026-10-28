@@ -44,13 +44,32 @@ class DistributionTests(unittest.TestCase):
         subprocess.run([sys.executable, str(ROOT / 'tools/package.py')], check=True, capture_output=True)
         self.assertEqual(self.archive.read_bytes(), before)
 
+    def test_native_shell_and_embedded_app_are_installed_together(self):
+        with tarfile.open(self.archive) as archive:
+            template = archive.extractfile('cct/plugin/home.html.tt').read().decode()
+            self.assertIn("WRAPPER '_assets/master.html.tt'", template)
+            self.assertIn("CPANEL.CPVAR.dprefix", template)
+            self.assertIn("CPANEL.feature('cct')", template)
+            self.assertIn('src="index.live.pl?embedded=1"', template)
+            self.assertIn("frame-ancestors 'self'", archive.extractfile('cct/plugin/index.live.pl').read().decode())
+            self.assertEqual(json.loads(archive.extractfile('cct/install.json').read())[0]['uri'], 'cct/home.html')
+            for script in ('install.sh', 'uninstall.sh'):
+                text = archive.extractfile('cct/' + script).read().decode()
+                for resource in ('home.html.tt', 'shell.css'):
+                    self.assertIn(resource, text)
+            self.assertTrue(archive.getmember('cct/plugin/shell.css').isfile())
+
     def test_browser_module_graph_is_packaged_with_cpanel_compatible_extensions(self):
         with tarfile.open(self.archive) as archive:
             source = archive.extractfile('cct/plugin/index.html').read().decode()
             entry = re.search(r'<script type="module" src="([^"]+)"', source).group(1)
+            self.assertIn('?v=' + self.version, entry)
+            self.assertIn('styles.css?v=' + self.version, source)
             pending, seen = [entry], set()
             while pending:
-                name = pending.pop()
+                resource = pending.pop()
+                self.assertIn('?v=' + self.version, resource)
+                name = resource.split('?', 1)[0]
                 if name in seen:
                     continue
                 self.assertTrue(name.endswith('.js'), 'cpsrvd must serve each module with a JavaScript MIME type')
