@@ -16,7 +16,8 @@ my $deadline = time() + 120;
 my %allowed = map { $_ => 1 } (
     'uapi/Features/has_feature', 'uapi/Quota/get_quota_info',
     'uapi/Email/list_pops', 'uapi/Mailboxes/get_mailbox_status_list',
-    'uapi/Mailboxes/expunge_messages_for_mailbox_guid', 'api2/DiskUsage/clearcache'
+    'uapi/Mailboxes/expunge_messages_for_mailbox_guid', 'api2/DiskUsage/clearcache',
+    'api2/DiskUsage/fetchdiskusagewithextras'
 );
 
 # LiveAPI may emit diagnostics. Keep them out of the one HTTP response.
@@ -105,15 +106,21 @@ if (!$ok) {
 if ($live) { eval { vendor_call(sub { $live->end() }); }; }
 my $status = $response->{status} // '';
 my $type = $response->{content_type} // '';
-if ($status !~ /\A(?:200 OK|400 Bad Request|404 Not Found|500 Internal Server Error)\z/
-    || $type !~ /\A(?:application\/json|text\/html); charset=utf-8\z/ || ref($response->{body})) {
+if ($status !~ /\A(?:200 OK|302 Found|400 Bad Request|404 Not Found|500 Internal Server Error)\z/
+    || $type !~ /\A(?:application\/json|text\/html); charset=utf-8\z/ || ref($response->{body})
+    || ($status eq '302 Found' && ($response->{location} // '') ne 'home.html')) {
     $status = '500 Internal Server Error';
     $type = 'application/json; charset=utf-8';
     $response->{body} = '{"error":"Respuesta interna no valida."}';
 }
+# Only this fixed, relative destination may redirect old plugin bookmarks.
+my $location = '';
+if ($status eq '302 Found') {
+    $location = "Location: home.html\r\n";
+}
 my $bytes = encode('UTF-8', $response->{body} // '');
 binmode STDOUT;
-print "Status: $status\r\nContent-Type: $type\r\nCache-Control: no-store\r\n",
+print "Status: $status\r\nContent-Type: $type\r\nCache-Control: no-store\r\n", $location,
     "X-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\n",
     "Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'self'\r\n",
     'Content-Length: ', length($bytes), "\r\n\r\n", $bytes;

@@ -10,7 +10,7 @@ from urllib.parse import parse_qs, urlsplit
 sys.dont_write_bytecode = True
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
-from cct_core import Account, CleanupError, Scanner, UAPI, delete_selected, get_quota
+from cct_core import Account, CleanupError, Scanner, UAPI, delete_selected, get_quota, get_storage
 from cct_mail import list_mail_accounts, preview_mail_by_date, delete_mail_by_date
 from cct_live import PipeTransport
 
@@ -35,12 +35,17 @@ def check_post(environ):
 
 
 def main(transport=None, body_bytes=b""):
-    action = parse_qs(os.environ.get("QUERY_STRING", "")).get("action", ["page"])[0]
+    query = parse_qs(os.environ.get("QUERY_STRING", ""))
+    action = query.get("action", ["page"])[0]
     try:
         account = Account.current()
         api = UAPI(account, transport=transport)
         api.require_feature()
         if action == "page" and os.environ.get("REQUEST_METHOD", "GET") == "GET":
+            if query.get("embedded") != ["1"]:
+                response = respond("", status="302 Found", content_type="text/html; charset=utf-8")
+                response["location"] = "home.html"
+                return response
             return respond((BASE / "index.html").read_text(encoding="utf-8"), content_type="text/html; charset=utf-8")
         elif action == "scan" and os.environ.get("REQUEST_METHOD") == "GET":
             result = Scanner(account, api).scan()
@@ -48,6 +53,8 @@ def main(transport=None, body_bytes=b""):
             return respond(result)
         elif action == "quota" and os.environ.get("REQUEST_METHOD") == "GET":
             return respond({"quota": get_quota(api)})
+        elif action == "storage" and os.environ.get("REQUEST_METHOD") == "GET":
+            return respond({"storage": get_storage(api)})
         elif action == "refresh":
             check_post(os.environ)
             refresh = api.clear_disk_cache()

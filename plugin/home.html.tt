@@ -1,0 +1,16 @@
+[%
+    SET CPANEL.CPVAR.dprefix = "../";
+    WRAPPER '_assets/master.html.tt'
+        app_key = 'cct'
+        page_title = 'Limpieza de espacio'
+        page_stylesheets = ['cct/shell.css']
+        include_legacy_stylesheets = 0
+        include_legacy_scripts = 0
+        include_cjt = 0
+    -%]
+    [% IF CPANEL.feature('cct') %]
+        <iframe id="cct-app" title="Limpieza de espacio de tu cuenta" src="index.live.pl?embedded=1"></iframe>
+    [% ELSE %]
+        <p>La limpieza de espacio no está habilitada para esta cuenta.</p>
+    [% END %]
+[% END %]
