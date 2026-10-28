@@ -37,6 +37,8 @@ def fixture():
         ("public_html/error_log", 126*MIB, 0, "logs", "protected", "Puede ser un registro activo. Requiere rotación antes de limpiarlo."),
         (".trash/informe-antiguo.pdf", 6.8*MIB, 32, "trash", "review", "Archivo en la papelera."),
         ("logs/error_log.1.gz", 18*MIB, 2, "logs", "protected", "Registro reciente: conservar durante al menos 7 días."),
+        ("mail/tienda.cl/ventas/.Junk/cur/demo-extra-1:2,S", 6*MIB, 55, "spam", "review", "Mensaje de ejemplo en spam."),
+        ("mail/tienda.cl/ventas/.Junk/new/demo-extra-2", 4*MIB, 71, "spam", "review", "Mensaje de ejemplo en spam."),
     ]
     items = []
     for n, (path, size, days, category, risk, reason) in enumerate(data):
@@ -72,8 +74,11 @@ def fixture():
             "category":"mail_date","risk":"review","selectable":True,"reason":"Mensaje anterior a la fecha elegida.",
             "size_bytes":size,"reclaimable_bytes":size,"modified_at":now-age*86400,"fingerprint":[str(v) for v in (0,1000+n,size,int(now-age*86400)*10**9,0,1)],
             "account":address,"uid":200+n,"uid_validity":"42","mailbox_guid":f"{n+1:032x}","mailbox":folder})
+    storage={"mail":int(7.6*GIB),"web":int(5.2*GIB),"databases":int(1.4*GIB),"backups":int(2.3*GIB),"logs":int(.25*GIB)}
+    storage["other"]=used-sum(storage.values())
     return {"items":items,"mail_items":mail_items,"partial":False,"warnings":[],"scanned_at":now,"visited":8421,
-            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.2.4",
+            "storage":{"status":"ok","basis":"allocated_bytes","categories":[{"key":key,"bytes":value} for key,value in storage.items()],"source":"demo"},
+            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.2.5",
             "quota":{"limit_bytes":limit,"used_bytes":used,"free_bytes":limit-used,"source":"demo"}}
 
 
@@ -129,6 +134,8 @@ class Preview(BaseHTTPRequestHandler):
             return self.send(result)
         if path == "/api/quota":
             return self.send({"quota":self.snapshot["quota"]})
+        if path == "/api/storage":
+            return self.send({"storage":self.snapshot["storage"]})
         if path == "/api/mail_accounts":
             return self.send({"accounts":DEMO_ACCOUNTS})
         filename = "index.html" if path == "/" else path.lstrip("/")
@@ -183,6 +190,12 @@ class Preview(BaseHTTPRequestHandler):
             before=copy.deepcopy(self.snapshot["quota"])
             self.snapshot["quota"]["used_bytes"]-=size
             self.snapshot["quota"]["free_bytes"]+=size
+            for item in selected:
+                relative=item['relative_path']
+                root=relative.split('/')[0]
+                category='mail' if root=='mail' else 'web' if root in {'public_html','public_ftp'} else 'backups' if root in {'backups','backup'} else 'logs' if root=='logs' else 'other'
+                counter=next(row for row in self.snapshot['storage']['categories'] if row['key']==category)
+                counter['bytes']=max(0,counter['bytes']-item['reclaimable_bytes'])
             return self.send({"deleted_ids":sorted(deleted),"estimated_removed_bytes":size,"failed":[],"warnings":[],"quota_before":before,"quota":self.snapshot["quota"],"observed_quota_delta_bytes":size,"cache_refresh":{"status":"cleared","message":"Simulación: se vació la caché de uso de disco de tu cuenta.","retry_after_seconds":300,"retry_is_guaranteed":False}})
         except (CleanupError,ValueError,TypeError,KeyError):
             self.send({"error":"Solicitud inválida."},400)
