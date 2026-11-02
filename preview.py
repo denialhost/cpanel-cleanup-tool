@@ -78,7 +78,7 @@ def fixture():
     storage["other"]=used-sum(storage.values())
     return {"items":items,"mail_items":mail_items,"partial":False,"warnings":[],"scanned_at":now,"visited":8421,
             "storage":{"status":"ok","basis":"allocated_bytes","categories":[{"key":key,"bytes":value} for key,value in storage.items()],"source":"demo"},
-            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.2.5",
+            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.2.6",
             "quota":{"limit_bytes":limit,"used_bytes":used,"free_bytes":limit-used,"source":"demo"}}
 
 
@@ -106,6 +106,7 @@ def demo_mail_preview(snapshot, addresses, cutoff, scope):
 
 class Preview(BaseHTTPRequestHandler):
     snapshot = fixture()
+    analysis = None
 
     def log_message(self, *_):
         pass
@@ -160,8 +161,29 @@ class Preview(BaseHTTPRequestHandler):
             if not isinstance(payload,dict):
                 raise ValueError()
             path=urlsplit(self.path).path
+            if path=="/api/scan_start":
+                type(self).analysis={"token":"demo-"+str(time.time_ns()),"created":time.time(),"phase":"files","done":False,"partial":False,
+                    "warnings":[],"files_visited":0,"mail_visited":0,"directories":0,"visited":0,"batches":0,
+                    "candidates":len(self.snapshot['items']),"mail_accounts_total":3,"mail_accounts_done":0,"account":self.snapshot['account'],"version":self.snapshot['version']}
+                return self.send({"scan":self.analysis,"quota":self.snapshot['quota']})
+            if path in {"/api/scan_step","/api/scan_results"}:
+                if not self.analysis or payload.get('token')!=self.analysis['token']:
+                    return self.send({"error":"El análisis ya no está disponible. Vuelve a analizar."},400)
+                if path=="/api/scan_step":
+                    time.sleep(1)
+                    self.analysis['batches']+=1
+                    self.analysis['files_visited']=min(8421,self.analysis['batches']*4300)
+                    self.analysis['directories']=min(340,self.analysis['batches']*170)
+                    self.analysis['phase']='files' if self.analysis['batches']<2 else 'mail' if self.analysis['batches']<3 else 'done'
+                    self.analysis['done']=self.analysis['phase']=='done'
+                    self.analysis['mail_accounts_done']=3 if self.analysis['done'] else 0
+                    self.analysis['mail_visited']=len(self.snapshot['mail_items']) if self.analysis['done'] else 0
+                    self.analysis['visited']=self.analysis['files_visited']+self.analysis['mail_visited']
+                    return self.send({"scan":self.analysis})
+                return self.send({"items":self.snapshot['items'],"next_offset":None,"scan":self.analysis,"quota":self.snapshot['quota']})
             if path=="/api/reset":
                 type(self).snapshot=fixture()
+                type(self).analysis=None
                 return self.send({"ok":True})
             if path=="/api/refresh":
                 return self.send({"quota":self.snapshot["quota"],"cache_refresh":{"status":"cleared","message":"Simulación: se vació la caché de uso de disco de tu cuenta.","retry_after_seconds":300,"retry_is_guaranteed":False}})

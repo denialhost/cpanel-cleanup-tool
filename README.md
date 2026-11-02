@@ -1,6 +1,6 @@
 # CCT · cPanel Cleanup Tool
 
-Plugin v0.2.5 para **cPanel con tema Jupiter**, instalado por el administrador de **WHM/root**. Cada cliente revisa únicamente su propia cuenta.
+Plugin v0.2.6 para **cPanel con tema Jupiter**, instalado por el administrador de **WHM/root**. Cada cliente revisa únicamente su propia cuenta.
 
 Muestra cuota asignada, espacio ocupado/libre y candidatos con nombre, ubicación, bloques ocupados y fecha de modificación. Al seleccionar elementos calcula al instante el ahorro estimado, su porcentaje de la cuota, su porcentaje del uso actual y el espacio libre proyectado. Después del borrado consulta nuevamente la cuota; no presenta el ahorro estimado como recuperación real verificada.
 
@@ -22,6 +22,8 @@ Capturas actuales de la **demostración con datos ficticios**. La limpieza es un
 
 [Ver la interfaz completa con archivos agrupados, plan de limpieza y controles de correo](docs/screenshots/overview-current.jpg).
 
+[Ver el análisis por etapas con contadores y el control de pausa](docs/screenshots/analysis-current.jpg). Esta vista también utiliza datos ficticios.
+
 ## Instalación desde GitHub
 
 Repositorio: [denialhost/cpanel-cleanup-tool](https://github.com/denialhost/cpanel-cleanup-tool). Descargas: [versiones publicadas](https://github.com/denialhost/cpanel-cleanup-tool/releases).
@@ -29,15 +31,15 @@ Repositorio: [denialhost/cpanel-cleanup-tool](https://github.com/denialhost/cpan
 Ejecuta como **root** en cada servidor cPanel/WHM con Jupiter y Python 3.9+:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://github.com/denialhost/cpanel-cleanup-tool/releases/download/v0.2.5/install-cct.sh -o /root/install-cct.sh
-bash /root/install-cct.sh 0.2.5
+curl --proto '=https' --tlsv1.2 -fsSL https://github.com/denialhost/cpanel-cleanup-tool/releases/download/v0.2.6/install-cct.sh -o /root/install-cct.sh
+bash /root/install-cct.sh 0.2.6
 ```
 
 El instalador descarga el paquete de esa versión, verifica su SHA-256 y lo instala. También permite actualizar una instalación existente: descarga el instalador de la versión nueva y ejecútalo con ese número. No hay actualizaciones automáticas. Durante una actualización conserva temporalmente la versión anterior y restaura sus archivos si falla el registro en cPanel.
 
 En **WHM → Packages → Feature Manager**, busca **Limpieza de espacio Plugin** (identificador `cct`) y verifica que esté habilitado en las listas que corresponda; cPanel puede seleccionarlo por defecto al registrarlo. Cada cliente verá **cPanel → Archivos → Limpieza de espacio**. La instalación no analiza ni elimina datos de clientes.
 
-El instalador busca Python 3.9+ en las rutas del sistema aunque `python3` apunte a una versión antigua. Para elegirlo explícitamente, usa `CCT_PYTHON=/usr/bin/python3.12 bash /root/install-cct.sh 0.2.5`. La selección se conserva al ejecutar el instalador del paquete descargado. Si indicas una ruta incompatible, se detiene con un mensaje breve antes de modificar la instalación. No instala dependencias ni cambia el Python predeterminado del sistema.
+El instalador busca Python 3.9+ en las rutas del sistema aunque `python3` apunte a una versión antigua. Para elegirlo explícitamente, usa `CCT_PYTHON=/usr/bin/python3.12 bash /root/install-cct.sh 0.2.6`. La selección se conserva al ejecutar el instalador del paquete descargado. Si indicas una ruta incompatible, se detiene con un mensaje breve antes de modificar la instalación. No instala dependencias ni cambia el Python predeterminado del sistema.
 
 Si una versión publicada anterior muestra `AssertionError: Se requiere Python 3.9 o superior` y ya tienes Python 3.12 instalado, puedes ejecutarla con `CCT_PYTHON=/usr/bin/python3.12 bash /root/install-cct.sh 0.2.4`. Usa la ruta y el número de versión correspondientes a tu servidor y descarga.
 
@@ -60,7 +62,7 @@ Abre <http://127.0.0.1:8765>. Usa datos ficticios y simula el borrado en memoria
 Requisitos: Linux, cPanel & WHM con Jupiter, acceso root para instalar, Python **3.9+** y el Perl/LiveAPI incluido con cPanel. No hay dependencias de terceros ni claves API que configurar. La interfaz utiliza la sesión autenticada de cPanel.
 
 ```bash
-tar -xzf cct-0.2.5.tar.gz
+tar -xzf cct-0.2.6.tar.gz
 cd cct
 bash install.sh
 ```
@@ -75,11 +77,13 @@ Habilita `cct` en **WHM → Packages → Feature Manager** para la lista de func
 
 El instalador registra el icono mediante `install.json` y `install_plugin`, y copia la aplicación a `/usr/local/cpanel/base/frontend/jupiter/cct/`. `bash uninstall.sh` retira únicamente el plugin.
 
-**Estado de validación:** en cPanel 138.0 build 15 se comprobó la interfaz en un navegador real con una sesión autenticada: la cuenta, la cuota, el análisis inicial, su recarga y la lista de correo se muestran correctamente, sin errores JavaScript. También se comprobó el acceso de compatibilidad. No se ejecutaron borrados en el servidor durante esa validación. El cálculo, las reglas de protección y los flujos de borrado también se prueban con datos de prueba; antes de ofrecerlos a clientes, valida el borrado y Dovecot en una cuenta de prueba de tu entorno. Las capturas anteriores siguen siendo una demostración con datos ficticios.
+**Estado de validación:** el análisis por lotes completó 3.297.409 entradas y 1.294.517 carpetas de una cuenta real en cPanel 138.0 build 19, sin omisiones. Se verificaron pausa, continuación y apertura de una segunda vista del mismo análisis, sin errores JavaScript. La fase de correo se consultó, pero esa cuenta no tenía mensajes elegibles para este recorrido. No se borraron datos del cliente. Las reglas y los flujos de borrado se prueban con archivos y buzones ficticios; antes de ofrecerlos a clientes, valida el borrado y Dovecot con mensajes de prueba de tu entorno. Las capturas de este README son una demostración con datos ficticios.
 
 ## Espera, progreso y resultados
 
-Al entrar o volver a analizar, una ventana muestra tres puntos animados mientras se prepara la información. El análisis no muestra un porcentaje porque todavía no se conoce la cantidad total de archivos. El mismo indicador acompaña la consulta de cuota, la lista de correo y la vista previa por fecha.
+Al entrar o volver a analizar, una ventana muestra tres puntos animados, la etapa actual y contadores de entradas, carpetas y cuentas de correo. El análisis no muestra un porcentaje porque todavía no se conoce el total. Archivos y correo avanzan en etapas independientes; los resultados se preparan al terminar ambas. La cuenta analizada queda visible junto al título. El mismo indicador acompaña la consulta de cuota, la lista de correo y la vista previa por fecha.
+
+**Pausar análisis** termina la solicitud en curso y permite retomarlo con **Continuar análisis**. Mantén la página abierta para que siga avanzando: no es un proceso en segundo plano. Al volver a abrir el plugin se recupera el trabajo activo de esa cuenta, mientras no haya vencido ni se haya eliminado su estado temporal. El trabajo vence una hora después de iniciarse, incluso si está pausado. Si vence, vuelve a analizar. Una cuenta con millones de entradas puede tardar varios minutos; depende de la cantidad de archivos y carpetas, el almacenamiento y la respuesta de cPanel.
 
 Durante el borrado, el porcentaje avanza con los elementos procesados al terminar cada grupo. Se muestran por separado los eliminados y los pendientes: llegar al 100 % significa que se procesó la selección, aunque algunos elementos hayan fallado. La confirmación de borrado permanente se mantiene.
 
@@ -98,7 +102,11 @@ Si actualizas desde v0.2.3 o anterior, recarga y vuelve a analizar antes de borr
 
 Las heurísticas detectan **candidatos**, no garantizan que un archivo sea innecesario. Respaldos divididos pueden necesitar varias partes; deben revisarse como conjunto. El análisis general solo ofrece mensajes de spam y papelera. La sección adicional por fecha permite incluir recibidos, enviados, borradores y carpetas personalizadas al elegir explícitamente todas las carpetas. No se lee el cuerpo de los mensajes. Formatos `mdbox`, índices ausentes o formatos no reconocidos se omiten con aviso; se gestionan desde **Uso del disco de correo** de cPanel. Los buzones remotos no están cubiertos por esta versión.
 
-El análisis tiene un presupuesto de 20 segundos, 150.000 entradas y 5.000 candidatos; las llamadas UAPI tienen un tiempo máximo adicional de 12 segundos cada una. Si no se puede completar, se informa **análisis parcial** y se protegen los respaldos. Esta versión no continúa análisis grandes por páginas. No incluye un tablero global multiusuario en WHM ni respaldos globales de `/backup`; estos no pertenecen a la cuota personal del cliente.
+El análisis general continúa mediante solicitudes con un presupuesto de 3 segundos o 10.000 entradas por lote; no se detiene al alcanzar las antiguas 150.000 entradas. Este presupuesto no es un plazo máximo de respuesta: enumerar y ordenar una carpeta grande, abrir rutas o consultar cPanel puede añadir tiempo. Las llamadas UAPI tienen un máximo adicional de 12 segundos por llamada. La cola conserva la rama activa del recorrido para reducir el estado temporal en árboles con muchas carpetas.
+
+El inventario admite hasta **50.000 elementos**, incluidos los protegidos que la interfaz oculta, y se entrega en páginas de 250. El almacenamiento temporal se limita a 128 MiB por cuenta. Un límite de resultados, una ruta inaccesible o un servicio no disponible se informa como **análisis con omisiones**; los respaldos permanecen protegidos en ese caso. Una pausa normal entre lotes no se presenta como omisión. Si vence el trabajo o se agota el almacenamiento temporal, será necesario volver a analizar. El recorrido refleja metadatos en distintos momentos, no una instantánea del sistema de archivos.
+
+La sección independiente de **correo por fecha** y el acceso de compatibilidad `action=scan` conservan los presupuestos anteriores: 20 segundos, 150.000 entradas y 5.000 candidatos; informan resultados parciales si se agotan y requieren una nueva vista previa para revisar más. No incluye un tablero global multiusuario en WHM ni respaldos globales de `/backup`; estos no pertenecen a la cuota personal del cliente.
 
 ## Limpieza adicional de correos por fecha
 
@@ -130,19 +138,19 @@ La respuesta distingue **caché vaciada**, **vaciado en curso** y **refresco no 
 
 ## Controles del borrado
 
-Las solicitudes requieren POST JSON, cabecera propia y origen coincidente. El backend obtiene la cuenta del usuario efectivo del proceso, verifica la función `cct` y vuelve a analizar antes de borrar. Ignora rutas fuera del hogar, enlaces simbólicos, archivos de otro propietario, elementos protegidos y selecciones cuyo tamaño, inode, fechas u otro identificador haya cambiado. Recorre rutas con descriptores de directorio y `O_NOFOLLOW`. No acepta una ruta de hogar enviada por el navegador y no ejecuta comandos mediante una shell.
+Las solicitudes requieren POST JSON, cabecera propia y origen coincidente. El backend obtiene la cuenta del usuario efectivo del proceso y verifica la función `cct`. Para el análisis por lotes contrasta la selección con el inventario privado del servidor y vuelve a comprobar los elementos seleccionados, la retención de respaldos y los identificadores de correo antes de borrar; evita reiniciar el recorrido completo. Ignora rutas fuera del hogar, enlaces simbólicos, archivos de otro propietario, elementos protegidos y selecciones cuyo tamaño, inode, fechas u otro identificador haya cambiado. Recorre rutas con descriptores de directorio y `O_NOFOLLOW`. No acepta una ruta de hogar enviada por el navegador y no ejecuta comandos mediante una shell.
 
 La confirmación enumera los elementos concretos y exige escribir **ELIMINAR**. Las operaciones se dividen en lotes de 250 elementos. No hay limpieza automática. Los fallos parciales se informan individualmente. Los mensajes se identifican por GUID de buzón, UID y UIDVALIDITY validada en el nuevo análisis; el borrado usa la consulta Dovecot `UID` y se comprueba la desaparición del archivo. No se envía una consulta `ALL`. Cambios concurrentes en los índices o movimientos de mensajes pueden obligar a repetir el análisis; no se bloquea el servicio de correo durante la operación.
 
-El análisis no crea inventarios ni archivos temporales dentro de la cuenta, para poder trabajar cuando la cuota está llena. Los datos permanecen en el servidor y el navegador; no hay telemetría ni recursos externos.
+El análisis guarda un inventario temporal en `/tmp/cct-batch-UID/`, fuera del hogar del cliente: un trabajo por usuario, directorio privado con permisos 700 y archivos 600, token aleatorio vinculado a la cuenta y vencimiento de una hora. No se leen cuerpos de mensajes ni se crean archivos en el hogar para analizarlo. El inventario vencido se reemplaza al iniciar otro trabajo; no hay un proceso que lo borre automáticamente al vencer. La limpieza de `/tmp` del servidor también puede retirarlo. Los datos permanecen en el servidor y el navegador; no hay telemetría ni recursos externos.
 
 ## Conexión con cPanel y actualización desde v0.2.0
 
 La entrada `index.live.pl` inicia el módulo oficial `Cpanel::LiveAPI`, conecta una vez por solicitud y cierra la conexión antes de emitir la respuesta HTTP. El motor Python se comunica con esa entrada mediante dos tuberías privadas; las consultas UAPI y el refresco API 2 usan la misma sesión autenticada. No se ejecutan `uapi` ni `cpapi2` como subprocesos dentro de LiveAPI. La entrada anterior `index.live.cgi` se conserva como un acceso de compatibilidad al mismo puente.
 
-La versión 0.2.0 no iniciaba la conexión requerida por la extensión `.live.cgi`. Esto podía producir `Child failed to make LIVEAPI connection to cPanel` y texto adicional detrás de la respuesta JSON. Actualiza a 0.2.5 con el instalador de esta página y vuelve a abrir el plugin desde el icono de cPanel. El instalador conserva las selecciones de Feature Manager; no necesitas desinstalar primero.
+La versión 0.2.0 no iniciaba la conexión requerida por la extensión `.live.cgi`. Esto podía producir `Child failed to make LIVEAPI connection to cPanel` y texto adicional detrás de la respuesta JSON. Actualiza a 0.2.6 con el instalador de esta página y vuelve a abrir el plugin desde el icono de cPanel. El instalador conserva las selecciones de Feature Manager; no necesitas desinstalar primero.
 
-La versión 0.2.1 rechazaba un `CONTENT_LENGTH` vacío, que cpsrvd puede enviar en una apertura GET sin cuerpo. La versión 0.2.5 acepta el valor vacío o ausente como cero y mantiene la validación de los valores presentes. Esto corrige el error genérico «No se pudo conectar el plugin con LiveAPI de cPanel» observado al abrir la interfaz. Para consultar el detalle administrativo de un fallo, usa `grep -aF 'CCT: LiveAPI/backend request failed:' /usr/local/cpanel/logs/error_log | tail -n 10`; `-a` permite leer el registro aunque contenga bytes que grep considere binarios.
+La versión 0.2.1 rechazaba un `CONTENT_LENGTH` vacío, que cpsrvd puede enviar en una apertura GET sin cuerpo. La versión 0.2.6 acepta el valor vacío o ausente como cero y mantiene la validación de los valores presentes. Esto corrige el error genérico «No se pudo conectar el plugin con LiveAPI de cPanel» observado al abrir la interfaz. Para consultar el detalle administrativo de un fallo, usa `grep -aF 'CCT: LiveAPI/backend request failed:' /usr/local/cpanel/logs/error_log | tail -n 10`; `-a` permite leer el registro aunque contenga bytes que grep considere binarios.
 
 En v0.2.2, la página y las API podían responder correctamente mientras la interfaz quedaba en «Conectando cuenta…». cpsrvd devolvía los archivos `.mjs` con tipo HTML y el navegador rechazaba los módulos. Desde v0.2.3 la interfaz usa `.js` y conserva `type="module"`. Actualiza y vuelve a abrir el plugin para cargar la nueva entrada; no se requiere cambiar la configuración MIME del servidor.
 
@@ -153,7 +161,7 @@ Las pruebas de integración usan el puente Perl y el motor Python reales con un 
 ```bash
 python -m unittest discover -s tests -v
 node --test tests/model.test.mjs tests/mail-model.test.mjs tests/activity.test.mjs
-python -m py_compile plugin/cct_core.py plugin/cct_mail.py plugin/cct_backend.py plugin/cct_live.py preview.py
+python -m py_compile plugin/cct_core.py plugin/cct_batch.py plugin/cct_mail.py plugin/cct_backend.py plugin/cct_live.py preview.py
 perl -c plugin/index.live.pl
 bash -n install.sh uninstall.sh bootstrap.sh
 python tools/package.py

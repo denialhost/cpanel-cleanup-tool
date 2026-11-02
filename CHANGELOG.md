@@ -1,5 +1,15 @@
 # Cambios
 
+## 0.2.6
+
+- Continúa el análisis general por lotes, con etapas independientes para archivos y correo, sin el antiguo corte global de 150.000 entradas o 20 segundos. Muestra contadores reales y permite pausar y continuar.
+- Recupera el trabajo activo al volver a abrir el plugin y muestra la cuenta analizada. El estado vence una hora después del inicio; la página debe permanecer abierta para avanzar.
+- Guarda el inventario fuera del hogar del cliente, con permisos privados, token vinculado a la cuenta, bloqueo entre solicitudes y límites de almacenamiento y resultados. Recorre solo la rama activa para evitar colas enormes de carpetas pendientes.
+- Revalida la selección del inventario, las rutas, la retención de respaldos y los identificadores de correo antes de borrar, sin reiniciar el recorrido global. Conserva las confirmaciones de borrado permanente.
+- Preserva nombres de archivo no UTF-8 al continuar el recorrido, serializar el inventario y comprobar mensajes Maildir.
+- Completó 3.297.409 entradas y 1.294.517 carpetas en una cuenta real con cPanel 138.0 build 19, sin omisiones. Se comprobaron pausa y continuación; no se borraron datos de clientes. La fase de correo no encontró mensajes elegibles en esa cuenta.
+- Añade pruebas con archivos y buzones ficticios para continuación, páginas, aislamiento, vencimiento, retención y rechazo de selecciones alteradas. Renueva las capturas de demostración y documenta los límites; la sección de correo por fecha conserva su recorrido anterior.
+
 ## 0.2.5
 
 - Detecta Python 3.9+ en rutas del sistema aunque el Python predeterminado sea antiguo, como puede ocurrir en AlmaLinux 8. Conserva la selección al instalar el paquete descargado y muestra un diagnóstico breve si falta una versión compatible.
