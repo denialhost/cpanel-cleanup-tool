@@ -1,9 +1,9 @@
-import {categories, formatBytes, formatPercent, percent, totals, candidateRows, storageSegments} from './model.js?v=0.2.5-storage2';
-import {setupMailCleanup} from './mail.js?v=0.2.5-storage2';
-import {createActivity, renderDetails, resultSummary} from './activity.js?v=0.2.5-storage2';
+import {categories, formatBytes, formatPercent, percent, totals, candidateRows, storageSegments} from './model.js?v=0.2.6';
+import {setupMailCleanup} from './mail.js?v=0.2.6';
+import {createActivity, renderDetails, resultSummary} from './activity.js?v=0.2.6';
 const $ = id => document.getElementById(id);
 const demo = document.body.dataset.demo === 'true';
-const state={items:[],selected:new Set(),quota:{},category:'all',page:0,pageSize:9,busy:false,scannedAt:0,storage:{status:'loading'},storageStale:false};
+const state={items:[],selected:new Set(),quota:{},category:'all',page:0,pageSize:9,busy:false,scannedAt:0,storage:{status:'loading'},storageStale:false,scanJob:null,analysisToken:null,scanStop:false};
 let storageSequence=0;
 let mailControls;
 const activity = createActivity();
@@ -28,6 +28,12 @@ async function request(action,body){
   return data;
 }
 function filters(){return {category:state.category,search:$('search').value,age:Number($('age').value),sort:$('sort').value};}
+async function batchRequest(action,body){
+  for(let attempt=0;;attempt++){
+    try{return await request(action,body);}
+    catch(err){if(attempt>=5||!err.message.includes('ya está procesando otro lote'))throw err;await new Promise(resolve=>setTimeout(resolve,1000));}
+  }
+}
 function visible(){return candidateRows(state.items,filters());}
 function renderStorage(){
   const report=storageSegments(state.quota,state.storage);
@@ -137,12 +143,31 @@ function render(){renderQuota();renderTabs();renderTable();renderSelection();}
 function busy(value){state.busy=value;document.body.classList.toggle('loading',value);$('scan').disabled=value;$('refresh-quota').disabled=value;$('reset-demo').disabled=value;for(const id of ['search','age','sort'])$(id).disabled=value;mailControls?.setBusy(value);render();if(!value&&state.storageStale&&state.scannedAt)loadStorage();}
 async function scan(){
   if(state.busy)return;
-  const ticket=activity.begin({title:'Generando tu análisis',message:'Espera mientras revisamos tus archivos y correos.'});
-  busy(true);$('notice').hidden=true;
-  try{const data=await request('scan');state.items=data.items;state.selected.clear();state.quota=data.quota;state.scannedAt=data.scanned_at;state.storageStale=true;state.page=0;$('account-name').textContent=data.account.username;
-    $('scan-meta').textContent=`${data.partial?'Análisis parcial':'Último análisis'} · ${new Date(data.scanned_at*1000).toLocaleString('es-CL')} · ${data.visited.toLocaleString('es-CL')} archivos revisados`;
-    warnings([...data.warnings,...(data.quota.error?[data.quota.error]:[])]);
-  }catch(err){message(err.message,true);if(!state.scannedAt)$('account-name').textContent='Cuenta pendiente de analizar';}finally{busy(false);activity.end(ticket);}
+  const ticket=activity.begin({title:'Generando tu análisis',message:'Preparando la revisión por etapas…'});
+  state.scanStop=false;busy(true);$('notice').hidden=true;$('activity-stop').hidden=false;$('activity-stop').disabled=false;$('activity-stop').textContent='Pausar análisis';
+  try{
+    if(!state.scanJob){
+      const data=await batchRequest('scan_start',{});state.scanJob=data.scan;state.analysisToken=null;state.items=[];state.selected.clear();state.quota=data.quota;
+      $('account-name').textContent=data.scan.account.username;$('analysis-account').textContent='Cuenta analizada: '+data.scan.account.username;render();
+    }
+    while(!state.scanJob.done&&!state.scanStop){
+      const p=state.scanJob;
+      activity.update(ticket,{title:p.phase==='files'?'Revisando archivos':'Revisando correo',message:p.phase==='files'?
+        `${p.files_visited.toLocaleString('es-CL')} entradas revisadas · ${p.directories.toLocaleString('es-CL')} carpetas. El análisis continúa sin reiniciar.`:
+        `${p.mail_accounts_done} de ${p.mail_accounts_total} cuentas consultadas · ${p.mail_visited.toLocaleString('es-CL')} registros de correo revisados.`});
+      const data=await batchRequest('scan_step',{token:p.token});state.scanJob=data.scan;
+    }
+    if(state.scanStop){message('Análisis pausado. Pulsa «Continuar análisis» para retomarlo.');return;}
+    let offset=0;const items=[];
+    do{
+      activity.update(ticket,{title:'Preparando resultados',message:`${items.length.toLocaleString('es-CL')} de ${state.scanJob.candidates.toLocaleString('es-CL')} elementos preparados.`});
+      const data=await batchRequest('scan_results',{token:state.scanJob.token,offset});items.push(...data.items);if(data.quota)state.quota=data.quota;offset=data.next_offset;
+    }while(offset!==null);
+    const p=state.scanJob;state.items=items;state.analysisToken=p.token;state.scannedAt=p.created;state.storageStale=true;state.page=0;state.scanJob=null;
+    $('scan-meta').textContent=`${p.partial?'Análisis con omisiones':'Análisis completo'} · ${new Date(p.created*1000).toLocaleString('es-CL')} · ${p.visited.toLocaleString('es-CL')} entradas revisadas · archivos y correo`;
+    warnings([...p.warnings,...(state.quota.error?[state.quota.error]:[])]);
+  }catch(err){if(/venció|ya no está disponible/.test(err.message))state.scanJob=null;message(err.message,true);if(!state.scannedAt)$('account-name').textContent='Cuenta pendiente de analizar';}
+  finally{$('activity-stop').hidden=true;$('scan').textContent=state.scanJob?'Continuar análisis':'Volver a analizar';busy(false);activity.end(ticket);}
 }
 function review(){
   const t=totals(state.items,state.selected,state.quota);if(!t.picked.length)return;
@@ -162,7 +187,7 @@ async function performDelete(event){
   let deleted=0,estimated=0,failures=[];const notices=[];
   try{
     for(let offset=0;offset<items.length;offset+=250){
-      const result=await request('delete',{items:items.slice(offset,offset+250),confirm:'ELIMINAR',backups_ack:backupAck});
+      const result=await request('delete',{items:items.slice(offset,offset+250),confirm:'ELIMINAR',backups_ack:backupAck,analysis_token:state.analysisToken});
       const ids=new Set(result.deleted_ids);deleted+=ids.size;estimated+=result.estimated_removed_bytes;failures.push(...result.failed);
       state.items=state.items.filter(i=>!ids.has(i.id));for(const id of ids)state.selected.delete(id);state.quota=result.quota;
       for(const failure of result.failed)state.selected.delete(failure.id);
@@ -176,6 +201,7 @@ async function performDelete(event){
   finally{state.storageStale=true;busy(false);activity.end(ticket);}
 }
 $('scan').addEventListener('click',scan);
+$('activity-stop').addEventListener('click',()=>{state.scanStop=true;$('activity-stop').disabled=true;$('activity-stop').textContent='Pausando…';});
 $('storage-refresh').addEventListener('click',loadStorage);
 $('refresh-quota').textContent='Refrescar uso en cPanel ↻';
 $('refresh-quota').addEventListener('click',async()=>{if(state.busy)return;const ticket=activity.begin({title:'Actualizando uso de disco',message:'Espera mientras consultamos la cuota de tu cuenta.'});busy(true);try{const data=await request('refresh',{});state.quota=data.quota;state.storageStale=true;cacheNotice(data.cache_refresh);data.quota.error?message('No se pudo consultar la cuota. Revisa los detalles.',true):message('Cuota actualizada.');warnings(data.quota.error?[data.quota.error]:[]);}catch(err){message('No se pudo actualizar la cuota. Revisa los detalles.',true);warnings([err.message]);}finally{busy(false);activity.end(ticket);}});

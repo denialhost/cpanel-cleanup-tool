@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>CCT · Limpieza de espacio</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=0.2.5-storage2">
-  <script type="module" src="app.js?v=0.2.5-storage2"></script>
+  <link rel="stylesheet" href="styles.css?v=0.2.6">
+  <script type="module" src="app.js?v=0.2.6"></script>
 </head>
 <body data-demo="false">
   <div id="demo-banner" class="demo-banner" hidden><span>VISTA PREVIA · Datos de ejemplo. La limpieza es una simulación.</span><button id="reset-demo">Reiniciar demo ↻</button></div>
   <header class="topbar"><a class="brand" href="?" aria-label="CCT, inicio"><img src="icon.svg" alt="" width="34" height="34"><strong>CCT<span>cPanel Cleanup Tool</span></strong></a><div class="account-chip"><span class="status-dot"></span><span id="account-name">Preparando cuenta…</span><span class="chip-label">cPanel</span></div></header>
   <main>
     <nav class="breadcrumb" aria-label="Ubicación"><span>cPanel</span><span>›</span><span>Archivos</span><span>›</span><strong>Limpieza de espacio</strong><a class="mail-shortcut" href="#mail-cleanup">Correos por fecha ↓</a></nav>
-    <div class="page-heading"><div><div class="eyebrow">UN POCO DE ORDEN. MÁS ESPACIO.</div><h1>Haz espacio para lo que viene<span>.</span></h1><p>Descubre qué ocupa tu cuenta y decide qué puedes dejar atrás.</p></div><button id="scan" class="button secondary"><span aria-hidden="true">↻</span> Volver a analizar</button></div>
+    <div class="page-heading"><div><div class="eyebrow">UN POCO DE ORDEN. MÁS ESPACIO.</div><h1>Haz espacio para lo que viene<span>.</span></h1><p>Descubre qué ocupa tu cuenta y decide qué puedes dejar atrás.</p><p id="analysis-account">Identificando la cuenta…</p></div><button id="scan" class="button secondary"><span aria-hidden="true">↻</span> Volver a analizar</button></div>
     <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
     <div id="warnings" class="warnings" hidden></div>
     <section class="stats" aria-label="Espacio de tu cuenta">
@@ -77,6 +77,7 @@
     <progress id="activity-progress" max="100" value="0" aria-label="Elementos procesados" hidden></progress>
     <p id="activity-count" class="activity-count" aria-live="polite" hidden></p>
     <p class="activity-help">Mantén esta ventana abierta mientras terminamos.</p>
+    <button id="activity-stop" class="button secondary" type="button" hidden>Pausar análisis</button>
   </dialog>
 </body>
 </html>

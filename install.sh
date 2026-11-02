@@ -72,7 +72,7 @@ cleanup() {
 }
 trap cleanup EXIT
 chmod 0755 "$STAGE"
-for filename in cct_core.py cct_mail.py cct_backend.py cct_live.py home.html.tt shell.css index.html styles.css app.js model.js mail.js mail-model.js activity.js icon.svg; do
+for filename in cct_core.py cct_mail.py cct_batch.py cct_backend.py cct_live.py home.html.tt shell.css index.html styles.css app.js model.js mail.js mail-model.js activity.js icon.svg; do
     install -m 0644 -o root -g root "$SOURCE/plugin/$filename" "$STAGE/$filename"
 done
 # Jupiter resolves page_stylesheets to their .min.css variant in production.
