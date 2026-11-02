@@ -13,6 +13,7 @@ sys.path.insert(0, str(BASE))
 from cct_core import Account, CleanupError, Scanner, UAPI, delete_selected, get_quota, get_storage
 from cct_mail import list_mail_accounts, preview_mail_by_date, delete_mail_by_date
 from cct_live import PipeTransport
+from cct_batch import BatchScan, recheck_selection
 
 
 def respond(body, status="200 OK", content_type="application/json; charset=utf-8"):
@@ -61,7 +62,7 @@ def main(transport=None, body_bytes=b""):
             return respond({"cache_refresh": refresh, "quota": get_quota(api)})
         elif action == "mail_accounts" and os.environ.get("REQUEST_METHOD") == "GET":
             return respond({"accounts": list_mail_accounts(account, api)})
-        elif action in {"delete", "mail_preview", "mail_delete"}:
+        elif action in {"delete", "mail_preview", "mail_delete", "scan_start", "scan_step", "scan_results"}:
             check_post(os.environ)
             size = int(os.environ.get("CONTENT_LENGTH", "0"))
             if not 0 < size <= 1024 * 1024:
@@ -71,7 +72,23 @@ def main(transport=None, body_bytes=b""):
             payload = json.loads(body_bytes)
             if not isinstance(payload, dict):
                 raise CleanupError("Solicitud inválida.")
-            if action == "delete":
+            if action in {"scan_start", "scan_step", "scan_results"}:
+                with BatchScan(account, api) as job:
+                    if action == "scan_start":
+                        return respond({"scan": job.start(), "quota": get_quota(api)})
+                    if action == "scan_step":
+                        return respond({"scan": job.step(payload.get("token"))})
+                    result = job.results(payload.get("token"), payload.get("offset", 0))
+                    if payload.get("offset", 0) == 0:
+                        result["quota"] = get_quota(api)
+                    return respond(result)
+            if action == "delete" and payload.get("analysis_token"):
+                with BatchScan(account, api) as job:
+                    approved = job.approved(payload["analysis_token"], payload.get("items"))
+                from types import SimpleNamespace
+                factory = lambda account, api: SimpleNamespace(scan=lambda: recheck_selection(account, api, approved))
+                return respond(delete_selected(account, api, payload.get("items"), payload.get("confirm"), payload.get("backups_ack", False), scanner_factory=factory))
+            elif action == "delete":
                 return respond(delete_selected(account, api, payload.get("items"), payload.get("confirm"), payload.get("backups_ack", False)))
             elif action == "mail_preview":
                 return respond(preview_mail_by_date(account, api, payload.get("accounts"), payload.get("cutoff"), payload.get("scope")))

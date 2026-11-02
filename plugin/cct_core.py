@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
 
-VERSION = "0.2.5"
+VERSION = "0.2.6"
 DAY = 86400
 MAX_ITEMS = 5000
 MAX_VISITED = 150000
@@ -273,7 +273,7 @@ def make_item(owner, relative, st, category, risk, reason, **extra):
         risk, reason = "protected", "Tiene enlaces duros: no se puede atribuir un ahorro a este archivo."
     if st.st_uid != owner.uid:
         risk, reason = "protected", "El archivo pertenece a otro usuario."
-    return {"id": hashlib.sha256(key.encode()).hexdigest()[:24], "name": PurePosixPath(relative).name,
+    return {"id": hashlib.sha256(key.encode('utf-8', 'surrogateescape')).hexdigest()[:24], "name": PurePosixPath(relative).name,
             "relative_path": relative, "path": str(owner.home / relative), "category": category,
             "size_bytes": st.st_size, "reclaimable_bytes": recoverable, "modified_at": st.st_mtime,
             "fingerprint": fingerprint(st), "risk": risk, "selectable": risk != "protected",
