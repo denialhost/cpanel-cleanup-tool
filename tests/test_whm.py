@@ -83,6 +83,14 @@ class WhmBackendTests(unittest.TestCase):
         self.assertRegex(conf, r'(?m)^entryurl=addon_cct\.cgi$')
         self.assertRegex(conf, r'(?m)^displayname=CCT Limpieza de espacio$')
         self.assertRegex(conf, r'(?m)^acls=all$')
+        self.assertRegex(conf, r'(?m)^target=_self$')
+
+    def test_whm_ui_keeps_cpsession_relative_assets(self):
+        html = (ROOT / 'whm' / 'index.html').read_text(encoding='utf-8')
+        self.assertNotIn('/cgi/addon_cct.cgi?action=asset', html)
+        self.assertIn('href="?action=asset&file=styles.css', html)
+        self.assertIn('src="?action=asset&file=app.js', html)
+        self.assertIn('window.CCT_API = window.CCT_API || location.pathname', html)
 
 
 if __name__ == '__main__':

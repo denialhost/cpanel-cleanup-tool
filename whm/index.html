@@ -4,19 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>CCT · WHM Limpieza de espacio</title>
-  <script>window.CCT_API = window.CCT_API || (location.pathname.includes('/whm') ? location.pathname.replace(/\/$/, '') : '/cgi/addon_cct.cgi');</script>
-  <link rel="stylesheet" href="/cgi/addon_cct.cgi?action=asset&file=styles.css&v=0.4.1">
+  <!-- Relative to this CGI so /cpsess…/cgi/addon_cct.cgi keeps the session prefix. -->
+  <script>window.CCT_API = window.CCT_API || location.pathname;</script>
+  <link rel="stylesheet" href="?action=asset&file=styles.css&v=0.4.2">
   <script type="importmap">
   {
     "imports": {
-      "./model.js": "/cgi/addon_cct.cgi?action=asset&file=model.js",
-      "./activity.js": "/cgi/addon_cct.cgi?action=asset&file=activity.js",
-      "./model.js?v=0.4.1": "/cgi/addon_cct.cgi?action=asset&file=model.js",
-      "./activity.js?v=0.4.1": "/cgi/addon_cct.cgi?action=asset&file=activity.js"
+      "./model.js": "?action=asset&file=model.js",
+      "./activity.js": "?action=asset&file=activity.js",
+      "./model.js?v=0.4.2": "?action=asset&file=model.js",
+      "./activity.js?v=0.4.2": "?action=asset&file=activity.js"
     }
   }
   </script>
-  <script type="module" src="/cgi/addon_cct.cgi?action=asset&file=app.js&v=0.4.1"></script>
+  <script type="module" src="?action=asset&file=app.js&v=0.4.2"></script>
 </head>
 <body>
   <header class="topbar">

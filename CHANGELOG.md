@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.4.2
+
+- Corrige estilos y APIs del panel WHM bajo `/cpsess…/`: los assets ya no usan rutas absolutas `/cgi/…` que rompían la sesión.
+- Mantiene `target=_self` para abrir dentro de WHM.
+
 ## 0.4.1
 
 - Corrige el AppConfig WHM: el `name` con espacios impedía `register_appconfig` (`App names may only contain letters, numbers, - and _`), así que el icono no aparecía y el instalador hacía rollback.
