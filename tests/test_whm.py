@@ -80,7 +80,7 @@ class WhmBackendTests(unittest.TestCase):
         self.assertRegex(conf, r'(?m)^name=cct$')
         self.assertRegex(conf, r'(?m)^service=whostmgr$')
         self.assertRegex(conf, r'(?m)^url=/cgi/addon_cct\.cgi$')
-        self.assertRegex(conf, r'(?m)^entryurl=cgi/addon_cct\.cgi$')
+        self.assertRegex(conf, r'(?m)^entryurl=addon_cct\.cgi$')
         self.assertRegex(conf, r'(?m)^displayname=CCT Limpieza de espacio$')
         self.assertRegex(conf, r'(?m)^acls=all$')
 
