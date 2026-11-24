@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.4.1
+
+- Corrige el AppConfig WHM: el `name` con espacios impedía `register_appconfig` (`App names may only contain letters, numbers, - and _`), así que el icono no aparecía y el instalador hacía rollback.
+- Usa `name=cct` + `displayname=CCT Limpieza de espacio` y valida el registro en `/var/cpanel/apps/cct.conf`.
+
 ## 0.4.0
 
 - Añade panel **WHM solo root** para listar cuentas, analizar y borrar candidatos en el home del cliente sin entrar a su cPanel. No toca rutas del sistema.
