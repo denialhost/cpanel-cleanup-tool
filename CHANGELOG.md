@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.4.0
+
+- Añade panel **WHM solo root** para listar cuentas, analizar y borrar candidatos en el home del cliente sin entrar a su cPanel. No toca rutas del sistema.
+- Registra auditoría mensual por cuenta en `~/.cct/audit/YYYY-MM.log` (quién, cuándo, qué, resultado), tanto desde cPanel como desde WHM.
+- WHM permite consultar el log de auditoría de la cuenta abierta. El motor Python se reutiliza desde la instalación Jupiter.
+
 ## 0.3.0
 
 - Regenera la caché de uso de disco tras borrar: `DiskUsage/clearcache` + `DiskUsage/buildcache`, con reintentos automáticos mientras cPanel indica que sigue regenerando.

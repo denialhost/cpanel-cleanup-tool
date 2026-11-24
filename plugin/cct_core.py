@@ -12,13 +12,13 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 DAY = 86400
 MAX_ITEMS = 5000
 MAX_VISITED = 150000
 SCAN_SECONDS = 20
 MAX_DELETE = 250
-EXCLUDED = {".ssh", ".gnupg", ".cpanel", ".cagefs", ".git", "node_modules", "vendor", "etc", "ssl", "mail", ".local"}
+EXCLUDED = {".ssh", ".gnupg", ".cpanel", ".cct", ".cagefs", ".git", "node_modules", "vendor", "etc", "ssl", "mail", ".local"}
 BACKUP_DIRS = {"backups", "backup", "updraft", "ai1wm-backups", "wpvividbackups", "backupbuddy_backups"}
 ARCHIVE = re.compile(r"\.(?:tar(?:\.gz|\.bz2|\.xz)?|tgz|zip|sql(?:\.gz)?|wpress)$", re.I)
 ROTATED = re.compile(r"^(?:error_log|access_log|error-log|access-log|.+\.log)(?:(?:[.-]\d[\d._-]*)?\.(?:gz|bz2|xz)|[.-]\d[\d._-]*)$", re.I)
@@ -43,20 +43,45 @@ class Account:
     uid: int
 
     @classmethod
-    def current(cls):
-        if os.name != "posix" or not hasattr(os, "geteuid") or os.geteuid() == 0:
-            raise CleanupError("El plugin debe ejecutarse con el usuario de cPanel, sin privilegios root.")
-        import pwd
-        entry = pwd.getpwuid(os.geteuid())
+    def _from_pwd(cls, entry):
         if not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", entry.pw_name):
             raise CleanupError("No se pudo identificar una cuenta de cPanel válida.")
         home = Path(entry.pw_dir).resolve(strict=True)
         if home == Path("/") or home.stat().st_uid != entry.pw_uid:
             raise CleanupError("El directorio de la cuenta no es válido.")
+        return cls(entry.pw_name, home, entry.pw_uid)
+
+    @classmethod
+    def current(cls):
+        if os.name != "posix" or not hasattr(os, "geteuid") or os.geteuid() == 0:
+            raise CleanupError("El plugin debe ejecutarse con el usuario de cPanel, sin privilegios root.")
+        import pwd
+        entry = pwd.getpwuid(os.geteuid())
         remote = os.environ.get("REMOTE_USER")
         if remote and remote != entry.pw_name:
             raise CleanupError("La sesión y el usuario del proceso no coinciden.")
-        return cls(entry.pw_name, home, entry.pw_uid)
+        return cls._from_pwd(entry)
+
+    @classmethod
+    def from_username(cls, username):
+        """WHM root may target a cPanel account; never used by the client plugin."""
+        if os.name != "posix" or not hasattr(os, "geteuid") or os.geteuid() != 0:
+            raise CleanupError("Solo WHM root puede operar sobre otra cuenta.")
+        if not isinstance(username, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", username):
+            raise CleanupError("Cuenta de cPanel no válida.")
+        import pwd
+        try:
+            entry = pwd.getpwnam(username)
+        except KeyError as exc:
+            raise CleanupError("La cuenta indicada no existe en este servidor.") from exc
+        return cls._from_pwd(entry)
+
+    @classmethod
+    def resolve(cls):
+        target = os.environ.get("CCT_TARGET_USER")
+        if target:
+            return cls.from_username(target)
+        return cls.current()
 
 
 class UAPI:
@@ -173,6 +198,38 @@ def get_quota(api):
         return normalize_quota(api.call("Quota", "get_quota_info"))
     except CleanupError as exc:
         return {"used_bytes": None, "limit_bytes": None, "free_bytes": None, "error": str(exc)}
+
+
+def list_whm_accounts(api):
+    """WHM root listing. Values come from WHM API1 listaccts."""
+    if api.transport is None:
+        raise CleanupError("LiveAPI is not connected")
+    document = api.transport.call("whm", "listaccts", "list", {})
+    if not isinstance(document, dict):
+        raise CleanupError("WHM no devolvió el listado de cuentas.")
+    data = document.get("data") or {}
+    rows = data.get("acct") if isinstance(data, dict) else None
+    if rows is None and isinstance(document.get("acct"), list):
+        rows = document["acct"]
+    if not isinstance(rows, list):
+        raise CleanupError("El listado de cuentas de WHM no es válido.")
+    accounts = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        user = row.get("user") or row.get("username")
+        if not isinstance(user, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", user):
+            continue
+        accounts.append({
+            "user": user,
+            "domain": row.get("domain") or "",
+            "plan": row.get("plan") or row.get("package") or "",
+            "diskused": row.get("diskused") or row.get("disk_usage") or "",
+            "disklimit": row.get("disklimit") or row.get("disk_limit") or "",
+            "email": row.get("email") or "",
+        })
+    accounts.sort(key=lambda item: item["user"])
+    return accounts
 
 
 def measure_mail_usage(account):
@@ -597,8 +654,9 @@ def unlink_candidate(account, item):
     relative = item["relative_path"]
     with open_parent(account, relative) as (fd, name):
         st = os.stat(name, dir_fd=fd, follow_symlinks=False)
-        if (not stat.S_ISREG(st.st_mode) or st.st_uid != account.uid or st.st_nlink != 1
-                or fingerprint(st) != item["fingerprint"]):
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != account.uid:
+            raise CleanupError("El archivo no pertenece a la cuenta analizada.")
+        if st.st_nlink != 1 or fingerprint(st) != item["fingerprint"]:
             raise CleanupError("El archivo cambió después del análisis. Vuelve a analizar.")
         match = classify(relative, st, time.time())
         if not match or match[1] == "protected":
@@ -606,7 +664,8 @@ def unlink_candidate(account, item):
         os.unlink(name, dir_fd=fd)
 
 
-def delete_selected(account, api, requested, confirm, backups_ack=False, scanner_factory=Scanner, mail_cutoff=None):
+def delete_selected(account, api, requested, confirm, backups_ack=False, scanner_factory=Scanner,
+                    mail_cutoff=None, actor=None, via="cpanel"):
     if confirm != "ELIMINAR":
         raise CleanupError("Escribe ELIMINAR para confirmar el borrado permanente.")
     if not isinstance(requested, list) or not 1 <= len(requested) <= MAX_DELETE:
@@ -615,6 +674,7 @@ def delete_selected(account, api, requested, confirm, backups_ack=False, scanner
         raise CleanupError("Selección inválida.")
     if len({i["id"] for i in requested}) != len(requested):
         raise CleanupError("La selección contiene elementos duplicados.")
+    actor = actor or ("root" if via == "whm" else f"cpanel:{account.username}")
     before = get_quota(api)
     inventory = scanner_factory(account, api).scan()
     current = {i["id"]: i for i in inventory["items"]}
@@ -640,7 +700,9 @@ def delete_selected(account, api, requested, confirm, backups_ack=False, scanner
                 unlink_candidate(account, item)
                 deleted.append(item)
         except (OSError, CleanupError) as exc:
-            failed.append({"id": req["id"], "path": req.get("relative_path", ""), "error": str(exc)})
+            failed.append({"id": req["id"], "path": req.get("relative_path", ""), "error": str(exc),
+                           "category": (item or {}).get("category", ""), "bytes": (item or {}).get("reclaimable_bytes", 0),
+                           "relative_path": (item or req).get("relative_path", "")})
     for (address, guid, validity), items in mail_groups.items():
         try:
             # GUID + exact UIDs target only the messages selected. UIDVALIDITY
@@ -654,17 +716,37 @@ def delete_selected(account, api, requested, confirm, backups_ack=False, scanner
             for item in items:
                 try:
                     safe_stat(account, item["relative_path"])
-                    failed.append({"id": item["id"], "path": item["relative_path"], "error": "cPanel aceptó la solicitud; la eliminación aún no pudo verificarse. Vuelve a analizar."})
+                    failed.append({"id": item["id"], "path": item["relative_path"], "relative_path": item["relative_path"],
+                                   "category": item["category"], "bytes": item["reclaimable_bytes"],
+                                   "error": "cPanel aceptó la solicitud; la eliminación aún no pudo verificarse. Vuelve a analizar."})
                 except FileNotFoundError:
                     deleted.append(item)
         except (OSError, CleanupError) as exc:
-            failed.extend({"id": i["id"], "path": i["relative_path"], "error": str(exc)} for i in items)
+            failed.extend({"id": i["id"], "path": i["relative_path"], "relative_path": i["relative_path"],
+                           "category": i["category"], "bytes": i["reclaimable_bytes"], "error": str(exc)} for i in items)
+    warnings = list(inventory["warnings"])
+    audit_events = [
+        {"id": item["id"], "category": item["category"], "relative_path": item["relative_path"],
+         "bytes": item["reclaimable_bytes"], "result": "deleted"}
+        for item in deleted
+    ]
+    audit_events.extend(
+        {"id": row["id"], "category": row.get("category", ""), "relative_path": row.get("relative_path") or row.get("path", ""),
+         "bytes": row.get("bytes", 0), "result": "failed", "error": row.get("error", "")}
+        for row in failed
+    )
+    if audit_events:
+        try:
+            from cct_audit import append_events
+            append_events(account, audit_events, actor=actor, via=via)
+        except CleanupError as exc:
+            warnings.append(str(exc))
     cache_refresh = api.refresh_disk_usage(rebuild=True) if deleted or mail_groups else None
     after = get_quota(api)
     delta = None
     if before.get("used_bytes") is not None and after.get("used_bytes") is not None:
         delta = before["used_bytes"] - after["used_bytes"]
-    return {"deleted_ids": [i["id"] for i in deleted], "failed": failed,
+    return {"deleted_ids": [i["id"] for i in deleted], "failed": [{"id": row["id"], "path": row.get("path") or row.get("relative_path", ""), "error": row["error"]} for row in failed],
             "estimated_removed_bytes": sum(i["reclaimable_bytes"] for i in deleted),
             "quota_before": before, "quota": after, "observed_quota_delta_bytes": delta,
-            "cache_refresh": cache_refresh, "warnings": inventory["warnings"]}
+            "cache_refresh": cache_refresh, "warnings": warnings}

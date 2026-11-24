@@ -1,4 +1,4 @@
-import {formatBytes} from './model.js?v=0.3.0';
+import {formatBytes} from './model.js?v=0.4.0';
 
 export function progressState(completed, total) {
   if (!Number.isFinite(total) || total <= 0) return {percent:null, completed:0, total:0};
@@ -75,12 +75,12 @@ export function createActivity(doc = document) {
     doc.getElementById('activity-title').textContent = state.title;
     doc.getElementById('activity-message').textContent = state.message;
     const bar = doc.getElementById('activity-progress');
-    bar.hidden = progress.percent === null;
     const label = doc.getElementById('activity-count');
-    label.hidden = progress.percent === null;
+    if (bar) bar.hidden = progress.percent === null;
+    if (label) label.hidden = progress.percent === null;
     if (progress.percent !== null) {
-      bar.value = progress.percent;
-      label.textContent = `${progress.percent} % · ${progress.completed.toLocaleString('es-CL')} de ${progress.total.toLocaleString('es-CL')} procesados`;
+      if (bar) bar.value = progress.percent;
+      if (label) label.textContent = `${progress.percent} % · ${progress.completed.toLocaleString('es-CL')} de ${progress.total.toLocaleString('es-CL')} procesados`;
     }
     if (!dialog.open) dialog.showModal();
   }

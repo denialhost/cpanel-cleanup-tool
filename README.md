@@ -1,6 +1,6 @@
 # CCT · cPanel Cleanup Tool
 
-Plugin v0.3.0 para **cPanel con tema Jupiter**, instalado por el administrador de **WHM/root**. Cada cliente revisa únicamente su propia cuenta.
+Plugin v0.4.0 para **cPanel con tema Jupiter**, instalado por el administrador de **WHM/root**. Cada cliente revisa únicamente su propia cuenta. WHM root dispone además de un panel para ayudar cuenta por cuenta, sin limpiar carpetas del sistema.
 
 Muestra cuota asignada, espacio ocupado/libre y candidatos con nombre, ubicación, bloques ocupados y fecha de modificación. Al seleccionar elementos calcula al instante el ahorro estimado, su porcentaje de la cuota, su porcentaje del uso actual y el espacio libre proyectado. Después del borrado consulta nuevamente la cuota; no presenta el ahorro estimado como recuperación real verificada.
 
@@ -14,7 +14,11 @@ La letra de los datos y controles es mayor y respeta el tamaño del navegador. L
 
 ## Capturas de pantalla
 
-Capturas actuales de la **demostración con datos ficticios**. La limpieza es una simulación; estas imágenes no corresponden a cuentas ni a un servidor cPanel real. Muestran el contenido del plugin; el marco exterior lo proporciona cPanel al instalarlo.
+Capturas actuales de la **demostración con datos ficticios**. La limpieza es una simulación; estas imágenes no corresponden a cuentas ni a un servidor cPanel/WHM real.
+
+### cPanel (cliente)
+
+Muestran el contenido del plugin; el marco exterior lo proporciona cPanel al instalarlo.
 
 | Uso de espacio por categoría | Correos por cuenta y fecha |
 | --- | --- |
@@ -22,7 +26,15 @@ Capturas actuales de la **demostración con datos ficticios**. La limpieza es un
 
 [Ver la interfaz completa con archivos agrupados, plan de limpieza y controles de correo](docs/screenshots/overview-current.jpg).
 
-[Ver el análisis por etapas con contadores y el control de pausa](docs/screenshots/analysis-current.jpg). Esta vista también utiliza datos ficticios.
+[Ver el análisis por etapas con contadores y el control de pausa](docs/screenshots/analysis-current.jpg).
+
+### WHM (solo root)
+
+| Listado de cuentas | Cuenta abierta con spam seleccionado |
+| --- | --- |
+| [![Listado WHM de cuentas demo con cuota y botón Revisar](docs/screenshots/whm-accounts-current.jpg)](docs/screenshots/whm-accounts-current.jpg) | [![Vista WHM de la cuenta tienda con candidatos y plan de limpieza](docs/screenshots/whm-account-current.jpg)](docs/screenshots/whm-account-current.jpg) |
+
+[Ver el diálogo de auditoría mensual de la cuenta](docs/screenshots/whm-audit-current.jpg) (quién borró qué y cuándo).
 
 ## Instalación desde GitHub
 
@@ -31,15 +43,17 @@ Repositorio: [denialhost/cpanel-cleanup-tool](https://github.com/denialhost/cpan
 Ejecuta como **root** en cada servidor cPanel/WHM con Jupiter y Python 3.9+:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://github.com/denialhost/cpanel-cleanup-tool/releases/download/v0.3.0/install-cct.sh -o /root/install-cct.sh
-bash /root/install-cct.sh 0.3.0
+curl --proto '=https' --tlsv1.2 -fsSL https://github.com/denialhost/cpanel-cleanup-tool/releases/download/v0.4.0/install-cct.sh -o /root/install-cct.sh
+bash /root/install-cct.sh 0.4.0
 ```
 
 El instalador descarga el paquete de esa versión, verifica su SHA-256 y lo instala. También permite actualizar una instalación existente: descarga el instalador de la versión nueva y ejecútalo con ese número. No hay actualizaciones automáticas. Durante una actualización conserva temporalmente la versión anterior y restaura sus archivos si falla el registro en cPanel.
 
 En **WHM → Packages → Feature Manager**, busca **Limpieza de espacio Plugin** (identificador `cct`) y verifica que esté habilitado en las listas que corresponda; cPanel puede seleccionarlo por defecto al registrarlo. Cada cliente verá **cPanel → Archivos → Limpieza de espacio**. La instalación no analiza ni elimina datos de clientes.
 
-El instalador busca Python 3.9+ en las rutas del sistema aunque `python3` apunte a una versión antigua. Para elegirlo explícitamente, usa `CCT_PYTHON=/usr/bin/python3.12 bash /root/install-cct.sh 0.3.0`. La selección se conserva al ejecutar el instalador del paquete descargado. Si indicas una ruta incompatible, se detiene con un mensaje breve antes de modificar la instalación. No instala dependencias ni cambia el Python predeterminado del sistema.
+El instalador busca Python 3.9+ en las rutas del sistema aunque `python3` apunte a una versión antigua. Para elegirlo explícitamente, usa `CCT_PYTHON=/usr/bin/python3.12 bash /root/install-cct.sh 0.4.0`. La selección se conserva al ejecutar el instalador del paquete descargado. Si indicas una ruta incompatible, se detiene con un mensaje breve antes de modificar la instalación. No instala dependencias ni cambia el Python predeterminado del sistema.
+
+Tras instalar, en **WHM → Plugins → CCT Limpieza de espacio** (solo root) puedes listar cuentas, analizar y borrar con la misma confirmación `ELIMINAR`. Cada borrado (cPanel o WHM) queda en `~/.cct/audit/YYYY-MM.log` dentro del home de la cuenta.
 
 Si una versión publicada anterior muestra `AssertionError: Se requiere Python 3.9 o superior` y ya tienes Python 3.12 instalado, puedes ejecutarla con `CCT_PYTHON=/usr/bin/python3.12 bash /root/install-cct.sh 0.2.4`. Usa la ruta y el número de versión correspondientes a tu servidor y descarga.
 
@@ -55,14 +69,14 @@ bash /usr/local/cpanel/base/frontend/jupiter/cct/uninstall.sh
 python preview.py
 ```
 
-Abre <http://127.0.0.1:8765>. Usa datos ficticios y simula el borrado en memoria. No analiza ni elimina archivos del equipo. El botón **Reiniciar demo** repone los datos de ejemplo.
+Abre <http://127.0.0.1:8765/> (cPanel) y <http://127.0.0.1:8765/whm> (WHM root). Usa datos ficticios y simula el borrado en memoria. No analiza ni elimina archivos del equipo. El botón **Reiniciar demo** (cPanel) repone los datos de ejemplo.
 
 ## Instalar en un servidor de prueba
 
 Requisitos: Linux, cPanel & WHM con Jupiter, acceso root para instalar, Python **3.9+** y el Perl/LiveAPI incluido con cPanel. No hay dependencias de terceros ni claves API que configurar. La interfaz utiliza la sesión autenticada de cPanel.
 
 ```bash
-tar -xzf cct-0.3.0.tar.gz
+tar -xzf cct-0.4.0.tar.gz
 cd cct
 bash install.sh
 ```
@@ -106,7 +120,7 @@ El análisis general continúa mediante solicitudes con un presupuesto de 3 segu
 
 El inventario admite hasta **50.000 elementos**, incluidos los protegidos que la interfaz oculta, y se entrega en páginas de 250. El almacenamiento temporal se limita a 128 MiB por cuenta. Un límite de resultados, una ruta inaccesible o un servicio no disponible se informa como **análisis con omisiones**; los respaldos permanecen protegidos en ese caso. Una pausa normal entre lotes no se presenta como omisión. Si vence el trabajo o se agota el almacenamiento temporal, será necesario volver a analizar. El recorrido refleja metadatos en distintos momentos, no una instantánea del sistema de archivos.
 
-La sección independiente de **correo por fecha** y el acceso de compatibilidad `action=scan` conservan los presupuestos anteriores: 20 segundos, 150.000 entradas y 5.000 candidatos; informan resultados parciales si se agotan y requieren una nueva vista previa para revisar más. No incluye un tablero global multiusuario en WHM ni respaldos globales de `/backup`; estos no pertenecen a la cuota personal del cliente.
+La sección independiente de **correo por fecha** y el acceso de compatibilidad `action=scan` conservan los presupuestos anteriores: 20 segundos, 150.000 entradas y 5.000 candidatos; informan resultados parciales si se agotan y requieren una nueva vista previa para revisar más. El panel WHM (solo root) permite trabajar cuenta por cuenta sobre el home del cliente. No limpia `/backup` global ni rutas del sistema; esos espacios no forman parte de la cuota personal del cliente.
 
 ## Limpieza adicional de correos por fecha
 
@@ -148,9 +162,9 @@ El análisis guarda un inventario temporal en `/tmp/cct-batch-UID/`, fuera del h
 
 La entrada `index.live.pl` inicia el módulo oficial `Cpanel::LiveAPI`, conecta una vez por solicitud y cierra la conexión antes de emitir la respuesta HTTP. El motor Python se comunica con esa entrada mediante dos tuberías privadas; las consultas UAPI y el refresco API 2 usan la misma sesión autenticada. No se ejecutan `uapi` ni `cpapi2` como subprocesos dentro de LiveAPI. La entrada anterior `index.live.cgi` se conserva como un acceso de compatibilidad al mismo puente.
 
-La versión 0.2.0 no iniciaba la conexión requerida por la extensión `.live.cgi`. Esto podía producir `Child failed to make LIVEAPI connection to cPanel` y texto adicional detrás de la respuesta JSON. Actualiza a 0.3.0 con el instalador de esta página y vuelve a abrir el plugin desde el icono de cPanel. El instalador conserva las selecciones de Feature Manager; no necesitas desinstalar primero.
+La versión 0.2.0 no iniciaba la conexión requerida por la extensión `.live.cgi`. Esto podía producir `Child failed to make LIVEAPI connection to cPanel` y texto adicional detrás de la respuesta JSON. Actualiza a 0.4.0 con el instalador de esta página y vuelve a abrir el plugin desde el icono de cPanel. El instalador conserva las selecciones de Feature Manager; no necesitas desinstalar primero.
 
-La versión 0.2.1 rechazaba un `CONTENT_LENGTH` vacío, que cpsrvd puede enviar en una apertura GET sin cuerpo. Desde 0.2.6 (y en 0.3.0) se acepta el valor vacío o ausente como cero y se mantiene la validación de los valores presentes. Esto corrige el error genérico «No se pudo conectar el plugin con LiveAPI de cPanel» observado al abrir la interfaz. Para consultar el detalle administrativo de un fallo, usa `grep -aF 'CCT: LiveAPI/backend request failed:' /usr/local/cpanel/logs/error_log | tail -n 10`; `-a` permite leer el registro aunque contenga bytes que grep considere binarios.
+La versión 0.2.1 rechazaba un `CONTENT_LENGTH` vacío, que cpsrvd puede enviar en una apertura GET sin cuerpo. Desde 0.2.6 se acepta el valor vacío o ausente como cero y se mantiene la validación de los valores presentes. Esto corrige el error genérico «No se pudo conectar el plugin con LiveAPI de cPanel» observado al abrir la interfaz. Para consultar el detalle administrativo de un fallo, usa `grep -aF 'CCT: LiveAPI/backend request failed:' /usr/local/cpanel/logs/error_log | tail -n 10`; `-a` permite leer el registro aunque contenga bytes que grep considere binarios.
 
 En v0.2.2, la página y las API podían responder correctamente mientras la interfaz quedaba en «Conectando cuenta…». cpsrvd devolvía los archivos `.mjs` con tipo HTML y el navegador rechazaba los módulos. Desde v0.2.3 la interfaz usa `.js` y conserva `type="module"`. Actualiza y vuelve a abrir el plugin para cargar la nueva entrada; no se requiere cambiar la configuración MIME del servidor.
 

@@ -155,7 +155,8 @@ def preview_mail_by_date(owner, api, addresses, cutoff, scope, scanner_factory=M
 
 
 def delete_mail_by_date(owner, api, requested, cutoff, scope, confirm,
-                        irreversible_ack, all_folders_ack=False, scanner_factory=MailDateScanner):
+                        irreversible_ack, all_folders_ack=False, scanner_factory=MailDateScanner,
+                        actor=None, via="cpanel"):
     if confirm != "ELIMINAR CORREOS" or irreversible_ack is not True:
         raise CleanupError("Confirma que el borrado es definitivo y escribe ELIMINAR CORREOS.")
     cutoff, scope = normalize_cutoff(cutoff), checked_scope(scope)
@@ -167,4 +168,4 @@ def delete_mail_by_date(owner, api, requested, cutoff, scope, confirm,
     addresses = checked_accounts(owner, api, sorted({i["account"] for i in requested}))
     factory = lambda account, client: scanner_factory(account, client, addresses, cutoff, scope)
     return delete_selected(owner, api, requested, "ELIMINAR", scanner_factory=factory,
-                           mail_cutoff=cutoff["epoch"])
+                           mail_cutoff=cutoff["epoch"], actor=actor, via=via)

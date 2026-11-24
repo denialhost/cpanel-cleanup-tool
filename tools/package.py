@@ -16,6 +16,7 @@ target = OUT / ("cct-" + version + ".tar.gz")
 files = [ROOT / n for n in ("README.md", "CHANGELOG.md", "VERSION", "preview.py", "package.json", "install.json", "uninstall.json", "install.sh", "uninstall.sh", "bootstrap.sh", "tools/package.py")]
 files += sorted(p for p in (ROOT / "tests").iterdir() if p.is_file())
 files += sorted(p for p in (ROOT / "plugin").iterdir() if p.is_file() and p.suffix != ".pyc")
+files += sorted(p for p in (ROOT / "whm").iterdir() if p.is_file())
 files += sorted(p for p in (ROOT / "docs/screenshots").iterdir() if p.is_file() and p.suffix.lower() in {".jpg", ".png"})
 with target.open("wb") as output, gzip.GzipFile(filename="", fileobj=output, mode="wb", mtime=0) as compressed, tarfile.open(fileobj=compressed, mode="w") as archive:
     for source in files:
@@ -24,7 +25,7 @@ with target.open("wb") as output, gzip.GzipFile(filename="", fileobj=output, mod
             data = data.replace(b"\r\n", b"\n")
         entry = tarfile.TarInfo("cct/" + source.relative_to(ROOT).as_posix())
         entry.size = len(data)
-        entry.mode = 0o755 if source.name in {"install.sh", "uninstall.sh", "bootstrap.sh", "index.live.pl", "index.live.cgi"} else 0o644
+        entry.mode = 0o755 if source.name in {"install.sh", "uninstall.sh", "bootstrap.sh", "index.live.pl", "index.live.cgi", "addon_cct.cgi"} else 0o644
         entry.mtime = 0
         archive.addfile(entry, io.BytesIO(data))
     data = (ROOT / "plugin/icon.svg").read_bytes()

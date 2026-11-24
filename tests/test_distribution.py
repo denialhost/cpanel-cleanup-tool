@@ -57,7 +57,11 @@ class DistributionTests(unittest.TestCase):
                 text = archive.extractfile('cct/' + script).read().decode()
                 for resource in ('home.html.tt', 'shell.css'):
                     self.assertIn(resource, text)
+                self.assertIn('cct_audit.py', text)
             self.assertTrue(archive.getmember('cct/plugin/shell.css').isfile())
+            self.assertTrue(archive.getmember('cct/plugin/cct_audit.py').isfile())
+            self.assertTrue(archive.getmember('cct/whm/addon_cct.cgi').isfile())
+            self.assertTrue(archive.getmember('cct/whm/cct.conf').isfile())
 
     def test_browser_module_graph_is_packaged_with_cpanel_compatible_extensions(self):
         with tarfile.open(self.archive) as archive:

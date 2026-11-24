@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CCT · WHM Limpieza de espacio</title>
+  <script>window.CCT_API = window.CCT_API || (location.pathname.includes('/whm') ? location.pathname.replace(/\/$/, '') : '/cgi/addon_cct.cgi');</script>
+  <link rel="stylesheet" href="/cgi/addon_cct.cgi?action=asset&file=styles.css&v=0.4.0">
+  <script type="importmap">
+  {
+    "imports": {
+      "./model.js": "/cgi/addon_cct.cgi?action=asset&file=model.js",
+      "./activity.js": "/cgi/addon_cct.cgi?action=asset&file=activity.js",
+      "./model.js?v=0.4.0": "/cgi/addon_cct.cgi?action=asset&file=model.js",
+      "./activity.js?v=0.4.0": "/cgi/addon_cct.cgi?action=asset&file=activity.js"
+    }
+  }
+  </script>
+  <script type="module" src="/cgi/addon_cct.cgi?action=asset&file=app.js&v=0.4.0"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><strong>CCT<span>WHM · solo root</span></strong></div>
+    <div class="account-chip"><span class="status-dot"></span><span id="session-label">Sesión root</span></div>
+  </header>
+  <main>
+    <section id="list-view">
+      <div class="page-heading">
+        <div>
+          <div class="eyebrow">LIMPIEZA POR CUENTA</div>
+          <h1>Revisa el espacio de tus clientes</h1>
+          <p>Analiza y borra candidatos dentro del home de cada cuenta. No modifica rutas del sistema.</p>
+        </div>
+        <button id="reload-accounts" class="button secondary" type="button">Actualizar listado ↻</button>
+      </div>
+      <div id="list-notice" class="notice" role="status" hidden></div>
+      <div class="toolbar">
+        <label class="search"><span aria-hidden="true">⌕</span><input id="account-search" type="search" placeholder="Buscar usuario o dominio…" aria-label="Buscar cuenta"></label>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Cuenta</th><th>Dominio</th><th>Plan</th><th>Disco</th><th></th></tr></thead>
+          <tbody id="account-list"></tbody>
+        </table>
+      </div>
+      <p id="account-empty" class="empty" hidden>No hay cuentas para mostrar.</p>
+    </section>
+
+    <section id="account-view" hidden>
+      <nav class="breadcrumb" aria-label="Ubicación">
+        <button id="back-list" class="text-button" type="button">← Cuentas</button>
+        <span>›</span>
+        <strong id="current-user">—</strong>
+      </nav>
+      <div class="whm-banner" role="status">Actuando como <strong>root</strong> sobre la cuenta <strong id="banner-user">—</strong>. El borrado es permanente y queda auditado.</div>
+      <div class="page-heading">
+        <div>
+          <div class="eyebrow">CUENTA SELECCIONADA</div>
+          <h1 id="account-title">—</h1>
+          <p id="analysis-account">Sin análisis todavía.</p>
+        </div>
+        <div class="heading-actions">
+          <button id="scan" class="button secondary" type="button">Analizar cuenta</button>
+          <button id="show-audit" class="button secondary" type="button">Ver auditoría</button>
+        </div>
+      </div>
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+      <div id="warnings" class="warnings" hidden></div>
+      <div id="cache-notice" class="cache-notice" role="status" hidden><strong>Actualización de cPanel</strong><p id="cache-message"></p><span id="cache-retry"></span></div>
+      <section class="stats" aria-label="Cuota de la cuenta">
+        <article class="stat"><div class="stat-label">CUOTA</div><strong id="quota-limit">—</strong></article>
+        <article class="stat"><div class="stat-label">USADO</div><strong id="quota-used">—</strong><span id="quota-used-percent"></span></article>
+        <article class="stat"><div class="stat-label">LIBRE</div><strong id="quota-free">—</strong></article>
+        <article class="stat recoverable"><div class="stat-label">SELECCIÓN</div><strong id="selected-size">0 B</strong></article>
+      </section>
+      <div class="workspace">
+        <section class="explorer">
+          <div class="category-tabs" id="categories" role="group" aria-label="Categorías"></div>
+          <div class="toolbar">
+            <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Buscar archivo…" aria-label="Buscar"></label>
+            <select id="age" aria-label="Edad"><option value="0">Cualquier fecha</option><option value="7">Más de 7 días</option><option value="30">Más de 30 días</option><option value="90">Más de 90 días</option></select>
+            <select id="sort" aria-label="Orden"><option value="size">Mayor tamaño</option><option value="oldest">Más antiguos</option><option value="name">Nombre</option></select>
+          </div>
+          <div class="selection-strip">
+            <span id="visible-count">Sin análisis</span>
+            <div class="selection-actions">
+              <button id="select-spam" class="text-button" type="button" disabled>Seleccionar spam</button>
+              <button id="clear-selection" class="text-button" type="button" disabled>Limpiar selección</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th class="check-cell"><input type="checkbox" id="select-all" aria-label="Seleccionar visibles"></th><th>Elemento</th><th>Modificado</th><th class="size-cell">En disco</th><th>Revisión</th></tr></thead>
+              <tbody id="file-list"></tbody>
+            </table>
+          </div>
+          <div id="empty" class="empty" hidden><h3>Sin candidatos con este filtro</h3></div>
+          <div class="table-footer"><span id="page-info">—</span><div><button id="previous-page" class="page-button" type="button">←</button><button id="next-page" class="page-button" type="button">→</button></div></div>
+        </section>
+        <aside class="plan">
+          <div class="plan-eyebrow">PLAN DE LIMPIEZA</div>
+          <h2>Confirma antes de borrar</h2>
+          <div class="plan-amount"><strong id="plan-bytes">0 B</strong><span>estimados</span></div>
+          <p id="selected-count">Ningún elemento seleccionado</p>
+          <button id="review" class="button primary" type="button" disabled>Revisar y eliminar</button>
+          <button id="refresh-quota" class="text-button refresh-quota" type="button">Refrescar uso en cPanel ↻</button>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="confirmation">
+    <form id="confirm-form">
+      <h2>Eliminar en la cuenta seleccionada</h2>
+      <p id="confirm-summary"></p>
+      <div id="confirm-list" class="confirm-list"></div>
+      <p class="delete-warning">Borrado permanente. Quedará registrado en la auditoría mensual de la cuenta.</p>
+      <label id="backup-ack-row" class="check-label" hidden><input type="checkbox" id="backup-ack">Revisé los respaldos seleccionados.</label>
+      <label class="confirm-label" for="confirm-word">Escribe <strong>ELIMINAR</strong></label>
+      <input id="confirm-word" class="confirm-word" autocomplete="off" spellcheck="false">
+      <div class="dialog-actions">
+        <button type="button" class="button secondary close-dialog">Cancelar</button>
+        <button type="submit" id="confirm-delete" class="button danger" disabled>Eliminar permanentemente</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="audit-dialog">
+    <form method="dialog">
+      <h2>Auditoría de la cuenta</h2>
+      <label>Mes <select id="audit-month"></select></label>
+      <div id="audit-list" class="confirm-list"></div>
+      <p id="audit-empty" class="mail-help" hidden>No hay eventos en este mes.</p>
+      <div class="dialog-actions"><button class="button secondary" value="cancel">Cerrar</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="activity" class="activity-dialog" aria-labelledby="activity-title" aria-describedby="activity-message activity-count" tabindex="-1">
+    <div class="activity-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+    <h2 id="activity-title">Trabajando…</h2>
+    <p id="activity-message"></p>
+    <progress id="activity-progress" max="100" value="0" aria-label="Elementos procesados" hidden></progress>
+    <p id="activity-count" class="activity-count" aria-live="polite" hidden></p>
+    <button id="activity-stop" class="button secondary" type="button" hidden>Pausar análisis</button>
+  </dialog>
+</body>
+</html>

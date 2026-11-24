@@ -7,15 +7,22 @@ import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit, unquote_plus
 
 ROOT = Path(__file__).resolve().parent
 PLUGIN = ROOT / "plugin"
+WHM = ROOT / "whm"
 sys.path.insert(0, str(PLUGIN))
 from cct_core import CleanupError, MAILBOXES, same_item
 from cct_mail import normalize_cutoff, checked_scope
 GIB = 1024**3
 MIB = 1024**2
+
+WHM_ACCOUNTS = [
+    {"user": "tienda", "domain": "tienda.cl", "plan": "business", "diskused": "17.6G", "disklimit": "20G", "email": "admin@tienda.cl"},
+    {"user": "blogdemo", "domain": "blog.demo", "plan": "starter", "diskused": "3.1G", "disklimit": "5G", "email": "hola@blog.demo"},
+    {"user": "agencia", "domain": "agencia.example", "plan": "pro", "diskused": "42G", "disklimit": "50G", "email": "ops@agencia.example"},
+]
 
 
 def fixture():
@@ -78,7 +85,7 @@ def fixture():
     storage["other"]=used-sum(storage.values())
     return {"items":items,"mail_items":mail_items,"partial":False,"warnings":[],"scanned_at":now,"visited":8421,
             "storage":{"status":"ok","basis":"allocated_bytes","categories":[{"key":key,"bytes":value} for key,value in storage.items()],"source":"demo"},
-            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.3.0",
+            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.4.0",
             "quota":{"limit_bytes":limit,"used_bytes":used,"free_bytes":limit-used,"source":"demo"}}
 
 
@@ -107,6 +114,7 @@ def demo_mail_preview(snapshot, addresses, cutoff, scope):
 class Preview(BaseHTTPRequestHandler):
     snapshot = fixture()
     analysis = None
+    audit_events = None
 
     def log_message(self, *_):
         pass
@@ -124,10 +132,129 @@ class Preview(BaseHTTPRequestHandler):
     def allowed(self):
         return self.headers.get("Host", "").split(":")[0] in {"127.0.0.1", "localhost"}
 
+    def query(self):
+        return {key: values[-1] for key, values in parse_qs(urlsplit(self.path).query, keep_blank_values=True).items()}
+
+    def demo_audit(self):
+        if type(self).audit_events is None:
+            now = int(time.time())
+            type(self).audit_events = [
+                {"ts": now - 3600, "actor": "root", "via": "whm", "account": "tienda", "category": "trash",
+                 "relative_path": ".trash/informe-antiguo.pdf", "bytes": int(6.8 * MIB), "id": "demo-14", "result": "deleted"},
+                {"ts": now - 7200, "actor": "cpanel:tienda", "via": "cpanel", "account": "tienda", "category": "spam",
+                 "relative_path": "mail/tienda.cl/ventas/.Junk/cur/1751000021.M932:2,S", "bytes": int(24 * MIB),
+                 "id": "demo-8", "result": "deleted"},
+                {"ts": now - 10800, "actor": "root", "via": "whm", "account": "tienda", "category": "logs",
+                 "relative_path": "logs/tienda.cl-Aug-2026.gz", "bytes": int(241 * MIB), "id": "demo-6",
+                 "result": "failed", "error": "El archivo cambió después del análisis."},
+            ]
+        return type(self).audit_events
+
+    def whm_asset(self, name):
+        mapping = {
+            "app.js": WHM / "app.js",
+            "styles.css": WHM / "styles.css",
+            "model.js": PLUGIN / "model.js",
+            "activity.js": PLUGIN / "activity.js",
+        }
+        path = mapping.get(name)
+        if path is None or not path.is_file():
+            return self.send({"error": "Recurso no disponible."}, 404)
+        content_type = "text/css; charset=utf-8" if name.endswith(".css") else "application/javascript; charset=utf-8"
+        return self.send(path.read_bytes(), content_type=content_type)
+
+    def handle_whm_get(self, params):
+        action = params.get("action", "page")
+        if action in {"page", ""}:
+            html = (WHM / "index.html").read_text(encoding="utf-8")
+            html = html.replace("/cgi/addon_cct.cgi", "/whm")
+            banner = (
+                '<div class="whm-banner" role="status" style="margin:12px 4% 0">'
+                'Demostración local con datos ficticios. No es un servidor WHM real.'
+                '</div>'
+            )
+            html = html.replace("<main>", banner + "\n  <main>", 1)
+            return self.send(html.encode("utf-8"), content_type="text/html; charset=utf-8")
+        if action == "asset":
+            return self.whm_asset(params.get("file", ""))
+        if action == "accounts":
+            return self.send({"accounts": WHM_ACCOUNTS, "version": self.snapshot["version"]})
+        if action == "audit_months":
+            return self.send({"months": [time.strftime("%Y-%m", time.gmtime())]})
+        if action == "audit_read":
+            month = params.get("month") or time.strftime("%Y-%m", time.gmtime())
+            return self.send({"month": month, "events": self.demo_audit(), "path": f".cct/audit/{month}.log"})
+        if action == "quota":
+            return self.send({"quota": self.snapshot["quota"], "account": {"username": params.get("user") or "tienda"}})
+        return self.send({"error": "Operación no disponible."}, 404)
+
+    def handle_whm_post(self, params, payload):
+        action = params.get("action", "")
+        if action == "scan_start":
+            type(self).analysis = {
+                "token": "demo-" + str(time.time_ns()), "created": time.time(), "phase": "files", "done": False,
+                "partial": False, "warnings": [], "files_visited": 0, "mail_visited": 0, "directories": 0,
+                "visited": 0, "batches": 0, "candidates": len(self.snapshot["items"]), "mail_accounts_total": 3,
+                "mail_accounts_done": 0, "account": self.snapshot["account"], "version": self.snapshot["version"],
+            }
+            return self.send({"scan": self.analysis, "quota": self.snapshot["quota"]})
+        if action in {"scan_step", "scan_results"}:
+            if not self.analysis or payload.get("token") != self.analysis["token"]:
+                return self.send({"error": "El análisis ya no está disponible. Vuelve a analizar."}, 400)
+            if action == "scan_step":
+                self.analysis["batches"] += 1
+                self.analysis["files_visited"] = min(8421, self.analysis["batches"] * 4300)
+                self.analysis["directories"] = min(340, self.analysis["batches"] * 170)
+                self.analysis["phase"] = "files" if self.analysis["batches"] < 2 else "mail" if self.analysis["batches"] < 3 else "done"
+                self.analysis["done"] = self.analysis["phase"] == "done"
+                self.analysis["mail_accounts_done"] = 3 if self.analysis["done"] else 0
+                self.analysis["mail_visited"] = len(self.snapshot["mail_items"]) if self.analysis["done"] else 0
+                self.analysis["visited"] = self.analysis["files_visited"] + self.analysis["mail_visited"]
+                return self.send({"scan": self.analysis})
+            return self.send({"items": self.snapshot["items"], "next_offset": None, "scan": self.analysis, "quota": self.snapshot["quota"]})
+        if action == "refresh":
+            return self.send({
+                "quota": self.snapshot["quota"], "storage": self.snapshot["storage"],
+                "cache_refresh": {"status": "built", "message": "Simulación: se regeneró la caché de uso de disco de esta cuenta.",
+                                  "retry_after_seconds": 0, "retry_is_guaranteed": False,
+                                  "source": "DiskUsage/clearcache+DiskUsage/buildcache"},
+            })
+        if action == "delete":
+            if payload.get("confirm") != "ELIMINAR":
+                return self.send({"error": "Confirmación necesaria."}, 400)
+            requested = payload.get("items", [])
+            if not isinstance(requested, list) or not 1 <= len(requested) <= 250:
+                raise ValueError()
+            ids = {item["id"] for item in requested}
+            selected = [i for i in self.snapshot["items"] if i["id"] in ids and i["selectable"] and (i["category"] != "backups" or payload.get("backups_ack") is True)]
+            size = sum(i["reclaimable_bytes"] for i in selected)
+            deleted = {i["id"] for i in selected}
+            self.snapshot["items"][:] = [i for i in self.snapshot["items"] if i["id"] not in deleted]
+            before = copy.deepcopy(self.snapshot["quota"])
+            self.snapshot["quota"]["used_bytes"] -= size
+            self.snapshot["quota"]["free_bytes"] += size
+            now = int(time.time())
+            events = self.demo_audit()
+            for item in selected:
+                events.append({"ts": now, "actor": "root", "via": "whm", "account": params.get("user") or "tienda",
+                               "category": item["category"], "relative_path": item["relative_path"],
+                               "bytes": item["reclaimable_bytes"], "id": item["id"], "result": "deleted"})
+            return self.send({
+                "deleted_ids": sorted(deleted), "estimated_removed_bytes": size, "failed": [], "warnings": [],
+                "quota_before": before, "quota": self.snapshot["quota"], "observed_quota_delta_bytes": size,
+                "cache_refresh": {"status": "built", "message": "Simulación: se regeneró la caché de uso de disco de esta cuenta.",
+                                  "retry_after_seconds": 0, "retry_is_guaranteed": False,
+                                  "source": "DiskUsage/clearcache+DiskUsage/buildcache"},
+            })
+        return self.send({"error": "Operación inválida."}, 404)
+
     def do_GET(self):
         if not self.allowed():
             return self.send({"error":"Host inválido."},403)
-        path = urlsplit(self.path).path
+        parsed = urlsplit(self.path)
+        path = parsed.path
+        if path in {"/whm", "/whm/"}:
+            return self.handle_whm_get(self.query())
         if path == "/api/scan":
             result=copy.deepcopy(self.snapshot)
             result.pop("mail_items",None)
@@ -161,6 +288,8 @@ class Preview(BaseHTTPRequestHandler):
             if not isinstance(payload,dict):
                 raise ValueError()
             path=urlsplit(self.path).path
+            if path in {"/whm", "/whm/"}:
+                return self.handle_whm_post(self.query(), payload)
             if path=="/api/scan_start":
                 type(self).analysis={"token":"demo-"+str(time.time_ns()),"created":time.time(),"phase":"files","done":False,"partial":False,
                     "warnings":[],"files_visited":0,"mail_visited":0,"directories":0,"visited":0,"batches":0,
@@ -184,6 +313,7 @@ class Preview(BaseHTTPRequestHandler):
             if path=="/api/reset":
                 type(self).snapshot=fixture()
                 type(self).analysis=None
+                type(self).audit_events=None
                 return self.send({"ok":True})
             if path=="/api/refresh":
                 return self.send({"quota":self.snapshot["quota"],"storage":self.snapshot["storage"],"cache_refresh":{"status":"built","message":"Simulación: se regeneró la caché de uso de disco de tu cuenta.","retry_after_seconds":0,"retry_is_guaranteed":False,"source":"DiskUsage/clearcache+DiskUsage/buildcache"}})
@@ -228,7 +358,9 @@ if __name__=="__main__":
     parser.add_argument("--port",type=int,default=8765)
     args=parser.parse_args()
     server=ThreadingHTTPServer(("127.0.0.1",args.port),Preview)
-    print(f"Vista previa: http://127.0.0.1:{server.server_address[1]}",flush=True)
+    port = server.server_address[1]
+    print(f"Vista previa cPanel: http://127.0.0.1:{port}/", flush=True)
+    print(f"Vista previa WHM:    http://127.0.0.1:{port}/whm", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

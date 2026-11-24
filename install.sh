@@ -13,6 +13,10 @@ if [[ ! -x /usr/local/cpanel/3rdparty/bin/perl || ! -f /usr/local/cpanel/Cpanel/
     echo 'No se encontró el entorno LiveAPI de Perl incluido con cPanel.' >&2
     exit 1
 fi
+if [[ ! -d /usr/local/cpanel/whostmgr/docroot/cgi || ! -x /usr/local/cpanel/bin/register_appconfig ]]; then
+    echo 'No se encontró el entorno WHM AppConfig requerido por CCT.' >&2
+    exit 1
+fi
 # Probe only fixed system locations; an explicit CCT_PYTHON must never be ignored.
 select_python() {
     local candidate
@@ -42,6 +46,7 @@ export CCT_PYTHON="$PYTHON"
 printf 'Python seleccionado: %s\n' "$PYTHON"
 SOURCE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 TARGET=/usr/local/cpanel/base/frontend/jupiter/cct
+WHM_TARGET=/usr/local/cpanel/whostmgr/docroot/cgi/cct
 if [[ -L "$TARGET" || ( -e "$TARGET" && ! -d "$TARGET" ) ]]; then
     echo 'El destino debe ser una carpeta real, sin enlaces simbólicos.' >&2
     exit 1
@@ -53,7 +58,9 @@ fi
 # Prepare all files before replacing the installed version. Both paths are
 # created under the fixed cPanel frontend directory, on the same filesystem.
 STAGE="$(mktemp -d /usr/local/cpanel/base/frontend/jupiter/.cct-stage.XXXXXXXX)"
+WHM_STAGE="$(mktemp -d /usr/local/cpanel/whostmgr/docroot/cgi/.cct-whm-stage.XXXXXXXX)"
 PREVIOUS=''
+WHM_PREVIOUS=''
 COMMITTED=0
 cleanup() {
     if [[ "$COMMITTED" == 0 && -n "$PREVIOUS" && -d "$PREVIOUS" ]]; then
@@ -62,17 +69,25 @@ cleanup() {
         fi
         mv -T -- "$PREVIOUS" "$TARGET"
         PREVIOUS=''
-        echo 'Se restauró la versión anterior del plugin.' >&2
+        echo 'Se restauró la versión anterior del plugin cPanel.' >&2
     fi
-    for directory in "$STAGE" "$PREVIOUS"; do
-        if [[ "$directory" == /usr/local/cpanel/base/frontend/jupiter/.cct-* && -d "$directory" && ! -L "$directory" ]]; then
+    if [[ "$COMMITTED" == 0 && -n "$WHM_PREVIOUS" && -d "$WHM_PREVIOUS" ]]; then
+        if [[ -d "$WHM_TARGET" && ! -L "$WHM_TARGET" ]]; then
+            rm -rf -- "$WHM_TARGET"
+        fi
+        mv -T -- "$WHM_PREVIOUS" "$WHM_TARGET"
+        WHM_PREVIOUS=''
+        echo 'Se restauró la versión anterior del addon WHM.' >&2
+    fi
+    for directory in "$STAGE" "$PREVIOUS" "$WHM_STAGE" "$WHM_PREVIOUS"; do
+        if [[ ( "$directory" == /usr/local/cpanel/base/frontend/jupiter/.cct-* || "$directory" == /usr/local/cpanel/whostmgr/docroot/cgi/.cct-* ) && -d "$directory" && ! -L "$directory" ]]; then
             rm -rf -- "$directory"
         fi
     done
 }
 trap cleanup EXIT
-chmod 0755 "$STAGE"
-for filename in cct_core.py cct_mail.py cct_batch.py cct_backend.py cct_live.py home.html.tt shell.css index.html styles.css app.js model.js mail.js mail-model.js activity.js icon.svg; do
+chmod 0755 "$STAGE" "$WHM_STAGE"
+for filename in cct_core.py cct_mail.py cct_batch.py cct_backend.py cct_live.py cct_audit.py home.html.tt shell.css index.html styles.css app.js model.js mail.js mail-model.js activity.js icon.svg; do
     install -m 0644 -o root -g root "$SOURCE/plugin/$filename" "$STAGE/$filename"
 done
 # Jupiter resolves page_stylesheets to their .min.css variant in production.
@@ -89,14 +104,31 @@ for filename in install.json uninstall.json VERSION; do
 done
 install -m 0755 -o root -g root "$SOURCE/uninstall.sh" "$STAGE/uninstall.sh"
 install -m 0644 -o root -g root "$SOURCE/plugin/icon.svg" "$SOURCE/icon.svg"
+
+# WHM root addon files (UI + CGI). Python engine remains in the Jupiter plugin dir.
+install -m 0755 -o root -g root "$SOURCE/whm/addon_cct.cgi" "$WHM_STAGE/addon_cct.cgi"
+for filename in index.html app.js styles.css cct.conf; do
+    install -m 0644 -o root -g root "$SOURCE/whm/$filename" "$WHM_STAGE/$filename"
+done
+/usr/local/cpanel/3rdparty/bin/perl -c "$WHM_STAGE/addon_cct.cgi"
+
 if [[ -d "$TARGET" ]]; then
     PREVIOUS="$(mktemp -d /usr/local/cpanel/base/frontend/jupiter/.cct-previous.XXXXXXXX)"
     rmdir -- "$PREVIOUS"
     mv -T -- "$TARGET" "$PREVIOUS"
 fi
+if [[ -d "$WHM_TARGET" ]]; then
+    WHM_PREVIOUS="$(mktemp -d /usr/local/cpanel/whostmgr/docroot/cgi/.cct-whm-previous.XXXXXXXX)"
+    rmdir -- "$WHM_PREVIOUS"
+    mv -T -- "$WHM_TARGET" "$WHM_PREVIOUS"
+fi
 mv -T -- "$STAGE" "$TARGET"
+mv -T -- "$WHM_STAGE" "$WHM_TARGET"
+# Expose the CGI at the AppConfig entry URL.
+install -m 0755 -o root -g root "$WHM_TARGET/addon_cct.cgi" /usr/local/cpanel/whostmgr/docroot/cgi/addon_cct.cgi
 /usr/local/cpanel/scripts/install_plugin "$SOURCE" --theme=jupiter
+/usr/local/cpanel/bin/register_appconfig "$WHM_TARGET/cct.conf"
 COMMITTED=1
 printf 'CCT v%s instalado.\n' "$(cat "$TARGET/VERSION")"
-printf '%s\n' 'CCT instalado. En Feature Manager busca "Limpieza de espacio Plugin" (cct).'
-printf '%s\n' 'Abre una cuenta de prueba en cPanel → Archivos → Limpieza de espacio.'
+printf '%s\n' 'cPanel: Feature Manager → "Limpieza de espacio Plugin" (cct).'
+printf '%s\n' 'WHM root: Plugins → CCT Limpieza de espacio.'
