@@ -75,6 +75,15 @@ class WhmBackendTests(unittest.TestCase):
         self.assertIn("'whm/listaccts'", source)
         self.assertIn('uapi/Quota/get_quota_info', source)
 
+    def test_whm_appconfig_has_menu_entry(self):
+        conf = (ROOT / 'whm' / 'cct.conf').read_text(encoding='utf-8')
+        self.assertRegex(conf, r'(?m)^name=cct$')
+        self.assertRegex(conf, r'(?m)^service=whostmgr$')
+        self.assertRegex(conf, r'(?m)^url=/cgi/addon_cct\.cgi$')
+        self.assertRegex(conf, r'(?m)^entryurl=cgi/addon_cct\.cgi$')
+        self.assertRegex(conf, r'(?m)^displayname=CCT Limpieza de espacio$')
+        self.assertRegex(conf, r'(?m)^acls=all$')
+
 
 if __name__ == '__main__':
     unittest.main()

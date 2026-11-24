@@ -127,8 +127,15 @@ mv -T -- "$WHM_STAGE" "$WHM_TARGET"
 # Expose the CGI at the AppConfig entry URL.
 install -m 0755 -o root -g root "$WHM_TARGET/addon_cct.cgi" /usr/local/cpanel/whostmgr/docroot/cgi/addon_cct.cgi
 /usr/local/cpanel/scripts/install_plugin "$SOURCE" --theme=jupiter
-/usr/local/cpanel/bin/register_appconfig "$WHM_TARGET/cct.conf"
+if ! /usr/local/cpanel/bin/register_appconfig "$WHM_TARGET/cct.conf"; then
+    echo 'No se pudo registrar el addon WHM en AppConfig.' >&2
+    exit 1
+fi
+if [[ ! -f /var/cpanel/apps/cct.conf ]]; then
+    echo 'AppConfig no dejó /var/cpanel/apps/cct.conf; el icono WHM no aparecerá.' >&2
+    exit 1
+fi
 COMMITTED=1
 printf 'CCT v%s instalado.\n' "$(cat "$TARGET/VERSION")"
 printf '%s\n' 'cPanel: Feature Manager → "Limpieza de espacio Plugin" (cct).'
-printf '%s\n' 'WHM root: Plugins → CCT Limpieza de espacio.'
+printf '%s\n' 'WHM root: busca "CCT Limpieza de espacio" (Plugins) o en el buscador de WHM.'
