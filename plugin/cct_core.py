@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
 
-VERSION = "0.2.6"
+VERSION = "0.3.0"
 DAY = 86400
 MAX_ITEMS = 5000
 MAX_VISITED = 150000
@@ -22,7 +22,14 @@ EXCLUDED = {".ssh", ".gnupg", ".cpanel", ".cagefs", ".git", "node_modules", "ven
 BACKUP_DIRS = {"backups", "backup", "updraft", "ai1wm-backups", "wpvividbackups", "backupbuddy_backups"}
 ARCHIVE = re.compile(r"\.(?:tar(?:\.gz|\.bz2|\.xz)?|tgz|zip|sql(?:\.gz)?|wpress)$", re.I)
 ROTATED = re.compile(r"^(?:error_log|access_log|error-log|access-log|.+\.log)(?:(?:[.-]\d[\d._-]*)?\.(?:gz|bz2|xz)|[.-]\d[\d._-]*)$", re.I)
-MAILBOXES = {"spam": "spam", "junk": "spam", "trash": "mail_trash"}
+# Direct IMAP short names only (after stripping a leading INBOX.). Nested custom
+# folders keep matching by their final segment; GUID resolution finds the path.
+MAILBOXES = {
+    "spam": "spam", "junk": "spam", "bulk": "spam",
+    "junk e-mail": "spam", "junk-email": "spam", "junkemail": "spam",
+    "correo no deseado": "spam", "correo-no-deseado": "spam", "correobasura": "spam",
+    "trash": "mail_trash",
+}
 
 
 class CleanupError(Exception):
@@ -78,24 +85,66 @@ class UAPI:
     def require_feature(self):
         self.call("Features", "has_feature", name="cct")
 
+    def _disk_usage_api2(self, function):
+        if self.transport is None:
+            raise CleanupError("LiveAPI is not connected")
+        document = self.transport.call("api2", "DiskUsage", function, {})
+        response = document.get("cpanelresult", document)
+        data = response.get("data") or []
+        if response.get("event", {}).get("result") != 1 or not isinstance(data, list) or not data:
+            raise ValueError("DiskUsage unavailable")
+        row = data[0] if isinstance(data[0], dict) else {}
+        flag = row.get("status")
+        return flag, str(row.get("statusmsg") or "")
+
     def clear_disk_cache(self):
-        """API 2 has no UAPI equivalent. Invalidation is not recalculation."""
+        """Invalidate only. Prefer refresh_disk_usage() after deletions."""
+        return self.refresh_disk_usage(rebuild=False)
+
+    def refresh_disk_usage(self, rebuild=True, poll=False):
+        """Clear and optionally rebuild Disk Usage cache via API 2.
+
+        clearcache invalidates; buildcache regenerates. There is no UAPI
+        equivalent. poll=True retries buildcache without clearing again.
+        """
+        sources = []
         try:
-            if self.transport is None:
-                raise CleanupError("LiveAPI is not connected")
-            document = self.transport.call("api2", "DiskUsage", "clearcache", {})
-            response = document.get("cpanelresult", document)
-            data = response.get("data") or []
-            if response.get("event", {}).get("result") != 1 or not data:
-                raise ValueError("Cache refresh unavailable")
-            status = "cleared" if data[0].get("status") == 1 else "pending" if data[0].get("status") == 0 else "unavailable"
+            if not poll:
+                flag, _ = self._disk_usage_api2("clearcache")
+                sources.append("DiskUsage/clearcache")
+                if flag == 0 and not rebuild:
+                    status = "pending"
+                elif flag not in {0, 1}:
+                    raise ValueError("Unexpected clearcache status")
+                elif not rebuild:
+                    status = "cleared"
+                else:
+                    status = None
+            else:
+                status = None
+            if rebuild or poll:
+                flag, message = self._disk_usage_api2("buildcache")
+                sources.append("DiskUsage/buildcache")
+                if flag == 1:
+                    status = "built"
+                elif flag == 0:
+                    status = "building"
+                else:
+                    raise ValueError(message or "Unexpected buildcache status")
+            if status is None:
+                status = "cleared"
         except (CleanupError, OSError, ValueError, TypeError, KeyError, AttributeError):
             status = "unavailable"
-        messages = {"cleared": "Se vació la caché de uso de disco de tu cuenta. cPanel puede tardar en recalcular sus indicadores.",
-                    "pending": "cPanel indicó que el vaciado de caché está en curso. Sus indicadores pueden tardar en actualizarse.",
-                    "unavailable": "No se pudo vaciar la caché de cPanel. El uso mostrado puede no reflejar todavía los archivos eliminados."}
-        return {"status": status, "message": messages[status], "retry_after_seconds": 300,
-                "retry_is_guaranteed": False, "source": "DiskUsage/clearcache"}
+        messages = {
+            "built": "Se regeneró la caché de uso de disco de tu cuenta. Cuota y desglose se actualizaron con los datos disponibles ahora.",
+            "building": "cPanel está regenerando la caché de uso de disco. Reintentamos automáticamente en unos segundos.",
+            "cleared": "Se vació la caché de uso de disco de tu cuenta. cPanel puede tardar en recalcular sus indicadores.",
+            "pending": "cPanel indicó que el vaciado de caché está en curso. Sus indicadores pueden tardar en actualizarse.",
+            "unavailable": "No se pudo regenerar la caché de cPanel. El uso mostrado puede no reflejar todavía los archivos eliminados.",
+        }
+        retry = 3 if status == "building" else 30 if status in {"cleared", "pending"} else 0
+        return {"status": status, "message": messages[status], "retry_after_seconds": retry,
+                "retry_is_guaranteed": status == "building", "source": "+".join(sources) or "DiskUsage"}
 
 
 def _nonnegative(value):
@@ -246,6 +295,66 @@ def safe_stat(account, relative):
         return os.stat(name, dir_fd=fd, follow_symlinks=False)
 
 
+def mailbox_short_name(folder):
+    if not isinstance(folder, str) or not folder:
+        return ""
+    return folder[6:] if folder.startswith("INBOX.") else folder
+
+
+def mailbox_category(folder):
+    return MAILBOXES.get(mailbox_short_name(folder).lower())
+
+
+def read_maildir_guid(account, relative):
+    with open_parent(account, relative + "/dovecot-uidlist") as (fd, name):
+        opened = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+        with os.fdopen(opened, "r", encoding="utf-8", errors="replace") as stream:
+            st = os.fstat(stream.fileno())
+            if not stat.S_ISREG(st.st_mode) or st.st_uid != account.uid:
+                raise CleanupError("Índice de correo inválido.")
+            header = stream.readline(4096).strip().split()
+            if not header or header[0] != "3":
+                raise CleanupError("Solo se admite el formato Maildir v3.")
+            guid = next((part[1:] for part in header if part.startswith("G")), "")
+            return guid.lower() if re.fullmatch(r"[a-fA-F0-9]{32}", guid) else None
+
+
+def maildir_paths_by_guid(account, base, on_visit=None):
+    """Map Maildir v3 GUID -> relative path under the account mail tree."""
+    paths = [base]
+    stop = False
+    with open_parent(account, base + "/.cct-anchor") as (fd, _):
+        with os.scandir(fd) as entries:
+            for entry in entries:
+                if on_visit and on_visit():
+                    stop = True
+                    break
+                if entry.name.startswith(".") and entry.is_dir(follow_symlinks=False):
+                    paths.append(base + "/" + entry.name)
+    matches = {}
+    for relative in paths:
+        if stop or (on_visit and on_visit()):
+            break
+        try:
+            guid = read_maildir_guid(account, relative)
+            if guid:
+                # Ambiguous aliases must never identify a deletion target.
+                matches[guid] = relative if guid not in matches else None
+        except (OSError, CleanupError):
+            continue
+    return matches
+
+
+def mail_account_base(account_username, address):
+    if address == account_username:
+        return "mail"
+    if re.fullmatch(r"[A-Za-z0-9_+.-]+@[A-Za-z0-9.-]+", address):
+        local, domain = address.rsplit("@", 1)
+        if local not in {".", ".."} and domain not in {".", ".."}:
+            return f"mail/{domain}/{local}"
+    return None
+
+
 def classify(relative, st, now):
     parts = PurePosixPath(relative).parts
     name = parts[-1]
@@ -362,24 +471,27 @@ class Scanner:
         for address in dict.fromkeys(addresses):
             if self.limited():
                 break
-            if address == self.account.username:
-                base = "mail"
-            elif re.fullmatch(r"[A-Za-z0-9_+.-]+@[A-Za-z0-9.-]+", address):
-                local, domain = address.rsplit("@", 1)
-                if local in {".", ".."} or domain in {".", ".."}:
-                    continue
-                base = f"mail/{domain}/{local}"
-            else:
+            base = mail_account_base(self.account.username, address)
+            if not base:
                 continue
             try:
                 statuses = self.api.call("Mailboxes", "get_mailbox_status_list", account=address) or []
+                def bump():
+                    self.visited += 1
+                    return self.limited()
+                paths = maildir_paths_by_guid(self.account, base, on_visit=bump)
+                if self.limited():
+                    break
                 for mailbox in statuses:
                     folder = mailbox.get("mailbox", "")
-                    short = folder[6:] if folder.startswith("INBOX.") else folder
-                    category = MAILBOXES.get(short.lower())
-                    guid = mailbox.get("guid", "")
-                    if category and int(mailbox.get("messages", 0)) > 0 and re.fullmatch(r"[a-fA-F0-9]{32}", guid):
-                        self.maildir(address, f"{base}/.{short}", guid, category)
+                    category = mailbox_category(folder)
+                    guid = str(mailbox.get("guid", "")).lower()
+                    short = mailbox_short_name(folder)
+                    if not category or int(mailbox.get("messages", 0)) <= 0 or not re.fullmatch(r"[a-fA-F0-9]{32}", guid):
+                        continue
+                    relative = paths.get(guid) or f"{base}/.{short}"
+                    self.mailbox_name = folder
+                    self.maildir(address, relative, guid, category)
             except (CleanupError, OSError, ValueError) as exc:
                 self.partial = True
                 self.warnings.append(f"No se pudo inspeccionar el correo de {address}: {exc}")
@@ -543,7 +655,7 @@ def delete_selected(account, api, requested, confirm, backups_ack=False, scanner
                     deleted.append(item)
         except (OSError, CleanupError) as exc:
             failed.extend({"id": i["id"], "path": i["relative_path"], "error": str(exc)} for i in items)
-    cache_refresh = api.clear_disk_cache() if deleted or mail_groups else None
+    cache_refresh = api.refresh_disk_usage(rebuild=True) if deleted or mail_groups else None
     after = get_quota(api)
     delta = None
     if before.get("used_bytes") is not None and after.get("used_bytes") is not None:

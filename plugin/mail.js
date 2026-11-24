@@ -1,6 +1,6 @@
-import {formatBytes,formatPercent,percent} from './model.js?v=0.2.6';
-import {localDateString,presetDate,cutoffFromDate,cutoffLabel,canConfirmMail} from './mail-model.js?v=0.2.6';
-import {renderDetails,resultSummary} from './activity.js?v=0.2.6';
+import {formatBytes,formatPercent,percent} from './model.js?v=0.3.0';
+import {localDateString,presetDate,cutoffFromDate,cutoffLabel,canConfirmMail} from './mail-model.js?v=0.3.0';
+import {renderDetails,resultSummary} from './activity.js?v=0.3.0';
 const folderLabel=name=>{
   const short=name.startsWith('INBOX.')?name.slice(6):name;
   return ({inbox:'Recibidos',sent:'Enviados',drafts:'Borradores',trash:'Papelera',spam:'Spam',junk:'Spam',archive:'Archivo'})[short.toLowerCase()]||short.replaceAll('.',' / ');
@@ -97,12 +97,16 @@ export function setupMailCleanup(host) {
     const frozen=state.preview,ack=$('mail-all-ack').checked;
     $('mail-confirmation').close();host.setBusy(true);
     const ticket=host.activity.begin({title:host.demo?'Simulando borrado':'Eliminando correos',message:'Validando los mensajes confirmados y procesando tu selección.',completed:0,total:frozen.items.length});
-    let deleted=0,estimated=0,failures=[];const warnings=[];
+    let deleted=0,estimated=0,failures=[];const warnings=[];let lastRefresh=null;
     try{
       for(let offset=0;offset<frozen.items.length;offset+=250){
         const result=await host.request('mail_delete',{items:frozen.items.slice(offset,offset+250),cutoff:frozen.cutoff,scope:frozen.scope,confirm:'ELIMINAR CORREOS',irreversible_ack:true,all_folders_ack:ack});
-        deleted+=result.deleted_ids.length;estimated+=result.estimated_removed_bytes;failures.push(...result.failed);warnings.push(...(result.warnings||[]));if(result.quota?.error)warnings.push(result.quota.error);host.onResult(result);host.cacheNotice(result.cache_refresh);
+        deleted+=result.deleted_ids.length;estimated+=result.estimated_removed_bytes;failures.push(...result.failed);warnings.push(...(result.warnings||[]));if(result.quota?.error)warnings.push(result.quota.error);host.onResult(result);lastRefresh=result.cache_refresh;host.cacheNotice(lastRefresh);
         host.activity.update(ticket,{completed:Math.min(offset+250,frozen.items.length),message:`${deleted} eliminados · ${failures.length} pendientes. Continuamos con tu selección.`});
+      }
+      if(lastRefresh&&host.followCacheRefresh){
+        host.activity.update(ticket,{message:'Regenerando la caché de uso de disco en cPanel…'});
+        await host.followCacheRefresh(lastRefresh);
       }
       invalidate();
       notice(resultSummary({deleted,bytes:estimated,failed:failures.length,mail:true,demo:host.demo}),!!failures.length);

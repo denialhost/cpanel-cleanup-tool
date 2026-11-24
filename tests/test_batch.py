@@ -231,7 +231,7 @@ class BatchTests(unittest.TestCase):
         kept.write_bytes(b'changed after analysis')
         api = Mock()
         api.call.return_value = {'megabytes_used': '1', 'megabyte_limit': '2'}
-        api.clear_disk_cache.return_value = {'status': 'cleared'}
+        api.refresh_disk_usage.return_value = {'status': 'built'}
         factory = lambda account, api: SimpleNamespace(scan=lambda: recheck_selection(account, api, approved))
         with patch.object(core.Scanner, 'scan', side_effect=AssertionError('Full traversal must not run')):
             result = core.delete_selected(self.account, api, selected, 'ELIMINAR', scanner_factory=factory)
@@ -240,7 +240,7 @@ class BatchTests(unittest.TestCase):
         self.assertTrue(untouched.exists())
         self.assertEqual(len(result['deleted_ids']), 1)
         self.assertEqual(len(result['failed']), 1)
-        api.clear_disk_cache.assert_called_once()
+        api.refresh_disk_usage.assert_called_once_with(rebuild=True)
 
     def mail(self, count):
         self.api = API(count)

@@ -31,6 +31,8 @@ class FakeAPI:
         return []
     def clear_disk_cache(self):
         return {"status":"cleared","message":"test","retry_after_seconds":300}
+    def refresh_disk_usage(self,rebuild=True,poll=False):
+        return {"status":"built","message":"test","retry_after_seconds":0,"retry_is_guaranteed":False}
 
 
 class CoreTests(unittest.TestCase):
@@ -272,10 +274,36 @@ class CoreTests(unittest.TestCase):
             result=core.UAPI(self.account,transport).clear_disk_cache()
             self.assertEqual(result["status"],expected)
             self.assertFalse(result["retry_is_guaranteed"])
+    def test_refresh_disk_usage_builds_cache_after_clear(self):
+        transport=Mock()
+        transport.call.side_effect=[
+            {"cpanelresult":{"event":{"result":1},"data":[{"status":1,"statusmsg":"cache cleared"}]}},
+            {"cpanelresult":{"event":{"result":1},"data":[{"status":1,"statusmsg":"cache built"}]}},
+        ]
+        result=core.UAPI(self.account,transport).refresh_disk_usage(rebuild=True)
+        self.assertEqual(result["status"],"built")
+        self.assertIn("buildcache",result["source"])
+        self.assertEqual([call.args[2] for call in transport.call.call_args_list],["clearcache","buildcache"])
+    def test_refresh_disk_usage_poll_retries_build_only(self):
+        transport=Mock()
+        transport.call.side_effect=[
+            {"cpanelresult":{"event":{"result":1},"data":[{"status":0,"statusmsg":"building"}]}},
+            {"cpanelresult":{"event":{"result":1},"data":[{"status":1,"statusmsg":"cache built"}]}},
+        ]
+        first=core.UAPI(self.account,transport).refresh_disk_usage(rebuild=True,poll=True)
+        self.assertEqual(first["status"],"building")
+        self.assertTrue(first["retry_is_guaranteed"])
+        second=core.UAPI(self.account,transport).refresh_disk_usage(rebuild=True,poll=True)
+        self.assertEqual(second["status"],"built")
+        self.assertEqual([call.args[2] for call in transport.call.call_args_list],["buildcache","buildcache"])
+    def test_mailbox_aliases_map_to_spam_category(self):
+        for name in ("INBOX.Spam","INBOX.Junk","INBOX.Bulk","INBOX.Correo no deseado","INBOX.Trash"):
+            category=core.mailbox_category(name)
+            self.assertEqual(category,"mail_trash" if name.endswith("Trash") else "spam")
     def test_failed_cache_refresh_keeps_disclaimer(self):
         transport=Mock()
         transport.call.side_effect=core.CleanupError("LiveAPI unavailable")
-        result=core.UAPI(self.account,transport).clear_disk_cache()
+        result=core.UAPI(self.account,transport).refresh_disk_usage(rebuild=True)
         self.assertEqual(result["status"],"unavailable")
         self.assertIn("no reflejar",result["message"])
     @unittest.skipUnless(os.name!="posix","Windows-specific fail-closed check")

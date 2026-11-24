@@ -78,7 +78,7 @@ def fixture():
     storage["other"]=used-sum(storage.values())
     return {"items":items,"mail_items":mail_items,"partial":False,"warnings":[],"scanned_at":now,"visited":8421,
             "storage":{"status":"ok","basis":"allocated_bytes","categories":[{"key":key,"bytes":value} for key,value in storage.items()],"source":"demo"},
-            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.2.6",
+            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.3.0",
             "quota":{"limit_bytes":limit,"used_bytes":used,"free_bytes":limit-used,"source":"demo"}}
 
 
@@ -186,7 +186,7 @@ class Preview(BaseHTTPRequestHandler):
                 type(self).analysis=None
                 return self.send({"ok":True})
             if path=="/api/refresh":
-                return self.send({"quota":self.snapshot["quota"],"cache_refresh":{"status":"cleared","message":"Simulación: se vació la caché de uso de disco de tu cuenta.","retry_after_seconds":300,"retry_is_guaranteed":False}})
+                return self.send({"quota":self.snapshot["quota"],"storage":self.snapshot["storage"],"cache_refresh":{"status":"built","message":"Simulación: se regeneró la caché de uso de disco de tu cuenta.","retry_after_seconds":0,"retry_is_guaranteed":False,"source":"DiskUsage/clearcache+DiskUsage/buildcache"}})
             if path=="/api/mail_preview":
                 return self.send(demo_mail_preview(self.snapshot,payload.get('accounts'),payload.get('cutoff'),payload.get('scope')))
             if path not in {"/api/delete","/api/mail_delete"}:
@@ -218,7 +218,7 @@ class Preview(BaseHTTPRequestHandler):
                 category='mail' if root=='mail' else 'web' if root in {'public_html','public_ftp'} else 'backups' if root in {'backups','backup'} else 'logs' if root=='logs' else 'other'
                 counter=next(row for row in self.snapshot['storage']['categories'] if row['key']==category)
                 counter['bytes']=max(0,counter['bytes']-item['reclaimable_bytes'])
-            return self.send({"deleted_ids":sorted(deleted),"estimated_removed_bytes":size,"failed":[],"warnings":[],"quota_before":before,"quota":self.snapshot["quota"],"observed_quota_delta_bytes":size,"cache_refresh":{"status":"cleared","message":"Simulación: se vació la caché de uso de disco de tu cuenta.","retry_after_seconds":300,"retry_is_guaranteed":False}})
+            return self.send({"deleted_ids":sorted(deleted),"estimated_removed_bytes":size,"failed":[],"warnings":[],"quota_before":before,"quota":self.snapshot["quota"],"observed_quota_delta_bytes":size,"cache_refresh":{"status":"built","message":"Simulación: se regeneró la caché de uso de disco de tu cuenta.","retry_after_seconds":0,"retry_is_guaranteed":False,"source":"DiskUsage/clearcache+DiskUsage/buildcache"}})
         except (CleanupError,ValueError,TypeError,KeyError):
             self.send({"error":"Solicitud inválida."},400)
 

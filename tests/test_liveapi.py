@@ -61,7 +61,12 @@ sub uapi {
     my $data = $module eq 'Quota' ? {megabytes_used => '100', megabyte_limit => '200'} : undef;
     return {cpanelresult => {result => {status => $disabled ? 0 : 1, data => $data, errors => $disabled ? ['Feature disabled'] : undef}}};
 }
-sub api2 { log_event('DiskUsage/clearcache'); return {cpanelresult => {event => {result => 1}, data => [{status => 1}]}}; }
+sub api2 {
+    my ($self, $module, $function, $params) = @_;
+    log_event("$module/$function");
+    my $msg = $function eq 'buildcache' ? 'cache built' : 'cache cleared';
+    return {cpanelresult => {event => {result => 1}, data => [{status => 1, statusmsg => $msg}]}};
+}
 sub end { log_event('end'); print "diagnostic during disconnect\n"; }
 1;
 '''
@@ -156,8 +161,8 @@ class BridgeIntegrationTests(unittest.TestCase):
             'CONTENT_TYPE': 'application/json', 'HTTP_X_CCT_REQUEST': '1',
             'HTTPS': 'on', 'HTTP_HOST': 'cpanel.example.com', 'HTTP_ORIGIN': 'https://cpanel.example.com'})
         self.assertIn(b'Status: 200', headers)
-        self.assertEqual(data['cache_refresh']['status'], 'cleared')
-        self.assertEqual(calls, ['new', 'Features/has_feature', 'DiskUsage/clearcache', 'Quota/get_quota_info', 'end'])
+        self.assertEqual(data['cache_refresh']['status'], 'built')
+        self.assertEqual(calls, ['new', 'Features/has_feature', 'DiskUsage/clearcache', 'DiskUsage/buildcache', 'Quota/get_quota_info', 'DiskUsage/fetchdiskusagewithextras', 'end'])
 
 
 if __name__ == '__main__':

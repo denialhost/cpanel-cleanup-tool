@@ -17,7 +17,7 @@ my %allowed = map { $_ => 1 } (
     'uapi/Features/has_feature', 'uapi/Quota/get_quota_info',
     'uapi/Email/list_pops', 'uapi/Mailboxes/get_mailbox_status_list',
     'uapi/Mailboxes/expunge_messages_for_mailbox_guid', 'api2/DiskUsage/clearcache',
-    'api2/DiskUsage/fetchdiskusagewithextras'
+    'api2/DiskUsage/buildcache', 'api2/DiskUsage/fetchdiskusagewithextras'
 );
 
 # LiveAPI may emit diagnostics. Keep them out of the one HTTP response.

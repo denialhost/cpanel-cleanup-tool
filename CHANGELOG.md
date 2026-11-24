@@ -1,5 +1,13 @@
 # Cambios
 
+## 0.3.0
+
+- Regenera la caché de uso de disco tras borrar: `DiskUsage/clearcache` + `DiskUsage/buildcache`, con reintentos automáticos mientras cPanel indica que sigue regenerando.
+- El botón **Refrescar uso en cPanel** vuelve a leer cuota y desglose tras reconstruir la caché, para reducir pasos manuales con `~/.cpanel/datastore`.
+- Amplía la detección de spam (`Junk`, `Bulk`, `Correo no deseado` y variantes) y resuelve carpetas Maildir por GUID también en el análisis general.
+- Añade **Seleccionar spam** y **Vaciar spam…** para marcar o confirmar el borrado de todo el spam detectado en la cuenta.
+- Pruebas del flujo clear+build, del sondeo `poll` y de alias de carpetas spam.
+
 ## 0.2.6
 
 - Continúa el análisis general por lotes, con etapas independientes para archivos y correo, sin el antiguo corte global de 150.000 entradas o 20 segundos. Muestra contadores reales y permite pausar y continuar.

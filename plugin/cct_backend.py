@@ -58,8 +58,17 @@ def main(transport=None, body_bytes=b""):
             return respond({"storage": get_storage(api)})
         elif action == "refresh":
             check_post(os.environ)
-            refresh = api.clear_disk_cache()
-            return respond({"cache_refresh": refresh, "quota": get_quota(api)})
+            size = int(os.environ.get("CONTENT_LENGTH") or "0")
+            if size < 0 or size > 1024 * 1024:
+                raise CleanupError("El tamaño de la solicitud no es válido.")
+            if size and len(body_bytes) != size:
+                raise CleanupError("El cuerpo de la solicitud está incompleto.")
+            payload = json.loads(body_bytes) if size else {}
+            if not isinstance(payload, dict):
+                raise CleanupError("Solicitud inválida.")
+            poll = payload.get("poll") is True
+            refresh = api.refresh_disk_usage(rebuild=True, poll=poll)
+            return respond({"cache_refresh": refresh, "quota": get_quota(api), "storage": get_storage(api)})
         elif action == "mail_accounts" and os.environ.get("REQUEST_METHOD") == "GET":
             return respond({"accounts": list_mail_accounts(account, api)})
         elif action in {"delete", "mail_preview", "mail_delete", "scan_start", "scan_step", "scan_results"}:

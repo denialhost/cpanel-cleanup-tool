@@ -1,13 +1,12 @@
 """Date-scoped mail cleanup: preview exact Maildir UIDs, then revalidate."""
-import os
 import re
-import stat
 import time
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
 from cct_core import (CleanupError, MAILBOXES, Scanner, delete_selected,
-                      get_quota, open_parent)
+                      get_quota, mail_account_base, maildir_paths_by_guid,
+                      mailbox_short_name, read_maildir_guid)
 
 SCOPES = {"spam_trash", "all"}
 
@@ -76,48 +75,21 @@ class MailDateScanner(Scanner):
         self.mail_cutoff = cutoff["epoch"]
 
     def _read_guid(self, relative):
-        with open_parent(self.account, relative + "/dovecot-uidlist") as (fd, name):
-            opened = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
-            with os.fdopen(opened, "r", encoding="utf-8", errors="replace") as stream:
-                st = os.fstat(stream.fileno())
-                if not stat.S_ISREG(st.st_mode) or st.st_uid != self.account.uid:
-                    raise CleanupError("Índice de correo inválido.")
-                header = stream.readline(4096).strip().split()
-                if not header or header[0] != "3":
-                    raise CleanupError("Solo se admite el formato Maildir v3.")
-                guid = next((x[1:] for x in header if x.startswith("G")), "")
-                return guid.lower() if re.fullmatch(r"[a-fA-F0-9]{32}", guid) else None
+        return read_maildir_guid(self.account, relative)
 
     def _paths_by_guid(self, base):
-        paths = [base]
-        # Match physical folders by GUID instead of guessing encoded folder names.
-        # Maildir++ keeps nested/custom-named folders at this level as .a.b.
-        with open_parent(self.account, base + "/.cct-anchor") as (fd, _):
-            with os.scandir(fd) as entries:
-                for entry in entries:
-                    self.visited += 1
-                    if self.limited():
-                        break
-                    if entry.name.startswith(".") and entry.is_dir(follow_symlinks=False):
-                        paths.append(base + "/" + entry.name)
-        matches = {}
-        for relative in paths:
-            if self.limited():
-                break
-            try:
-                guid = self._read_guid(relative)
-                if guid:
-                    # Ambiguous aliases must never identify a deletion target.
-                    matches[guid] = relative if guid not in matches else None
-            except (OSError, CleanupError):
-                continue
-        return matches
+        def bump():
+            self.visited += 1
+            return self.limited()
+        return maildir_paths_by_guid(self.account, base, on_visit=bump)
 
     def scan(self):
         for address in self.addresses:
             if self.limited():
                 break
-            base = "mail" if address == self.account.username else "mail/" + "/".join(reversed(address.rsplit("@", 1)))
+            base = mail_account_base(self.account.username, address)
+            if not base:
+                continue
             try:
                 statuses = self.api.call("Mailboxes", "get_mailbox_status_list", account=address)
                 if not isinstance(statuses, list):
@@ -125,7 +97,7 @@ class MailDateScanner(Scanner):
                 targets = []
                 for mailbox in statuses:
                     name = mailbox.get("mailbox", "")
-                    short = name[6:] if name.startswith("INBOX.") else name
+                    short = mailbox_short_name(name)
                     if self.scope == "spam_trash" and short.lower() not in MAILBOXES:
                         continue
                     if int(mailbox.get("messages", 0)) > 0:
@@ -136,7 +108,7 @@ class MailDateScanner(Scanner):
                 for mailbox in targets:
                     if self.limited():
                         break
-                    guid = mailbox.get("guid", "").lower()
+                    guid = str(mailbox.get("guid", "")).lower()
                     relative = paths.get(guid)
                     if not relative:
                         self.partial = True

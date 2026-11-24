@@ -262,15 +262,24 @@ class BatchScan:
         box = self.db.execute("SELECT * FROM boxes WHERE phase!='done' ORDER BY id LIMIT 1").fetchone()
         if box is None and account is not None:
             address = account['address']
-            base = 'mail' if address == self.account.username else 'mail/' + '/'.join(reversed(address.rsplit('@', 1)))
+            base = core.mail_account_base(self.account.username, address)
             try:
+                if not base:
+                    raise core.CleanupError('Cuenta de correo no válida.')
+                def bump():
+                    self.processed += 1
+                    self.meta['mail_visited'] += 1
+                    return self._limited()
+                paths = core.maildir_paths_by_guid(self.account, base, on_visit=bump)
                 for row in self.api.call('Mailboxes', 'get_mailbox_status_list', account=address) or []:
                     name = row.get('mailbox', '')
-                    short = name[6:] if name.startswith('INBOX.') else name
-                    guid, category = row.get('guid', ''), core.MAILBOXES.get(short.lower())
+                    guid = str(row.get('guid', '')).lower()
+                    category = core.mailbox_category(name)
+                    short = core.mailbox_short_name(name)
                     if category and int(row.get('messages', 0)) > 0 and re.fullmatch(r'[a-fA-F0-9]{32}', guid):
+                        relative = paths.get(guid) or (base + '/.' + short)
                         self.db.execute('INSERT INTO boxes(address,path,guid,category) VALUES (?,?,?,?)',
-                                        (address, base + '/.' + short, guid, category))
+                                        (address, relative, guid, category))
             except (core.CleanupError, OSError, TypeError, ValueError) as exc:
                 self._warn('No se pudo inspeccionar el correo de ' + address + ': ' + str(exc))
             self.db.execute('UPDATE accounts SET done=1 WHERE address=?', (address,))

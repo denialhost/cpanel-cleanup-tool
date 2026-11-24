@@ -1,6 +1,6 @@
 # CCT · cPanel Cleanup Tool
 
-Plugin v0.2.6 para **cPanel con tema Jupiter**, instalado por el administrador de **WHM/root**. Cada cliente revisa únicamente su propia cuenta.
+Plugin v0.3.0 para **cPanel con tema Jupiter**, instalado por el administrador de **WHM/root**. Cada cliente revisa únicamente su propia cuenta.
 
 Muestra cuota asignada, espacio ocupado/libre y candidatos con nombre, ubicación, bloques ocupados y fecha de modificación. Al seleccionar elementos calcula al instante el ahorro estimado, su porcentaje de la cuota, su porcentaje del uso actual y el espacio libre proyectado. Después del borrado consulta nuevamente la cuota; no presenta el ahorro estimado como recuperación real verificada.
 
@@ -31,15 +31,15 @@ Repositorio: [denialhost/cpanel-cleanup-tool](https://github.com/denialhost/cpan
 Ejecuta como **root** en cada servidor cPanel/WHM con Jupiter y Python 3.9+:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://github.com/denialhost/cpanel-cleanup-tool/releases/download/v0.2.6/install-cct.sh -o /root/install-cct.sh
-bash /root/install-cct.sh 0.2.6
+curl --proto '=https' --tlsv1.2 -fsSL https://github.com/denialhost/cpanel-cleanup-tool/releases/download/v0.3.0/install-cct.sh -o /root/install-cct.sh
+bash /root/install-cct.sh 0.3.0
 ```
 
 El instalador descarga el paquete de esa versión, verifica su SHA-256 y lo instala. También permite actualizar una instalación existente: descarga el instalador de la versión nueva y ejecútalo con ese número. No hay actualizaciones automáticas. Durante una actualización conserva temporalmente la versión anterior y restaura sus archivos si falla el registro en cPanel.
 
 En **WHM → Packages → Feature Manager**, busca **Limpieza de espacio Plugin** (identificador `cct`) y verifica que esté habilitado en las listas que corresponda; cPanel puede seleccionarlo por defecto al registrarlo. Cada cliente verá **cPanel → Archivos → Limpieza de espacio**. La instalación no analiza ni elimina datos de clientes.
 
-El instalador busca Python 3.9+ en las rutas del sistema aunque `python3` apunte a una versión antigua. Para elegirlo explícitamente, usa `CCT_PYTHON=/usr/bin/python3.12 bash /root/install-cct.sh 0.2.6`. La selección se conserva al ejecutar el instalador del paquete descargado. Si indicas una ruta incompatible, se detiene con un mensaje breve antes de modificar la instalación. No instala dependencias ni cambia el Python predeterminado del sistema.
+El instalador busca Python 3.9+ en las rutas del sistema aunque `python3` apunte a una versión antigua. Para elegirlo explícitamente, usa `CCT_PYTHON=/usr/bin/python3.12 bash /root/install-cct.sh 0.3.0`. La selección se conserva al ejecutar el instalador del paquete descargado. Si indicas una ruta incompatible, se detiene con un mensaje breve antes de modificar la instalación. No instala dependencias ni cambia el Python predeterminado del sistema.
 
 Si una versión publicada anterior muestra `AssertionError: Se requiere Python 3.9 o superior` y ya tienes Python 3.12 instalado, puedes ejecutarla con `CCT_PYTHON=/usr/bin/python3.12 bash /root/install-cct.sh 0.2.4`. Usa la ruta y el número de versión correspondientes a tu servidor y descarga.
 
@@ -62,7 +62,7 @@ Abre <http://127.0.0.1:8765>. Usa datos ficticios y simula el borrado en memoria
 Requisitos: Linux, cPanel & WHM con Jupiter, acceso root para instalar, Python **3.9+** y el Perl/LiveAPI incluido con cPanel. No hay dependencias de terceros ni claves API que configurar. La interfaz utiliza la sesión autenticada de cPanel.
 
 ```bash
-tar -xzf cct-0.2.6.tar.gz
+tar -xzf cct-0.3.0.tar.gz
 cd cct
 bash install.sh
 ```
@@ -98,7 +98,7 @@ Si actualizas desde v0.2.3 o anterior, recarga y vuelve a analizar antes de borr
 | Papelera | Archivos de `~/.trash/` | Selección y confirmación manual |
 | Registros | Logs rotados reconocidos y comprimidos en `~/logs/` | Conserva logs recientes de menos de 7 días y archivos que podrían estar activos |
 | Respaldos | Archivos de respaldo en carpetas reconocidas y respaldos cPanel `~/backup-*` | Conserva la ventana de 48 horas del conjunto más reciente por carpeta y los archivos con la misma fecha reconocida; exige aceptación adicional |
-| Spam y papelera de correo | Mensajes indexados de carpetas directas `.spam`, `.Spam`, `.Junk`, `.Trash` | Solo Maildir v3 con GUID válido; borra por UID mediante UAPI, nunca con `unlink` |
+| Spam y papelera de correo | Mensajes indexados de spam/junk/bulk/correo no deseado y `.Trash`, localizados por GUID | Solo Maildir v3 con GUID válido; borra por UID mediante UAPI, nunca con `unlink`. Botones **Seleccionar spam** y **Vaciar spam…** |
 
 Las heurísticas detectan **candidatos**, no garantizan que un archivo sea innecesario. Respaldos divididos pueden necesitar varias partes; deben revisarse como conjunto. El análisis general solo ofrece mensajes de spam y papelera. La sección adicional por fecha permite incluir recibidos, enviados, borradores y carpetas personalizadas al elegir explícitamente todas las carpetas. No se lee el cuerpo de los mensajes. Formatos `mdbox`, índices ausentes o formatos no reconocidos se omiten con aviso; se gestionan desde **Uso del disco de correo** de cPanel. Los buzones remotos no están cubiertos por esta versión.
 
@@ -132,9 +132,9 @@ Se revalidan la pertenencia de las cuentas, los identificadores y el estado de c
 
 ### Refresco de caché de cPanel
 
-Después de una eliminación, CCT intenta vaciar la caché de uso de disco **de esa cuenta** mediante `DiskUsage::clearcache` y vuelve a leer la cuota. También ofrece **Refrescar uso en cPanel**. Se utiliza API 2 a través de la conexión LiveAPI: esta función documentada pertenece a API 2, deprecada, y cPanel indica que no hay equivalente UAPI. Si no está disponible o la función está deshabilitada, el borrado ya completado sigue informado y aparece un aviso.
+Después de una eliminación, CCT vacía y **regenera** la caché de uso de disco **de esa cuenta** con `DiskUsage::clearcache` seguido de `DiskUsage::buildcache`, vuelve a leer la cuota y actualiza el desglose. También ofrece **Refrescar uso en cPanel**. Se utiliza API 2 a través de LiveAPI: cPanel indica que no hay equivalente UAPI. Si la regeneración queda en curso, la interfaz reintenta sola con `buildcache` hasta obtener `cache built` o agotar los intentos. Si la API no está disponible, el borrado ya completado sigue informado y aparece un aviso.
 
-La respuesta distingue **caché vaciada**, **vaciado en curso** y **refresco no disponible**. Vaciar la caché no garantiza que todos los contadores, buzones o el panel lateral se hayan recalculado. El aviso sugiere volver a consultar en **5 minutos**, identificado como intervalo de comprobación, no plazo máximo garantizado. No hay un tiempo general documentado aplicable a todas las vistas; el ciclo de cuatro horas documentado para la caché de bases de datos no se aplica como promesa a esta limpieza de archivos. No se ejecutan `fixquotas` ni reconstrucciones globales.
+La respuesta distingue **caché regenerada**, **regeneración en curso**, **caché vaciada**, **vaciado en curso** y **refresco no disponible**. No se borra a mano `~/.cpanel/datastore` ni se ejecutan `fixquotas` o reconstrucciones globales. La cuota del kernel y la vista de Uso del disco pueden actualizarse a ritmos distintos; si otra pantalla de cPanel sigue desfasada, vuelve a abrirla o pulsa el refresco del plugin.
 
 ## Controles del borrado
 
@@ -148,9 +148,9 @@ El análisis guarda un inventario temporal en `/tmp/cct-batch-UID/`, fuera del h
 
 La entrada `index.live.pl` inicia el módulo oficial `Cpanel::LiveAPI`, conecta una vez por solicitud y cierra la conexión antes de emitir la respuesta HTTP. El motor Python se comunica con esa entrada mediante dos tuberías privadas; las consultas UAPI y el refresco API 2 usan la misma sesión autenticada. No se ejecutan `uapi` ni `cpapi2` como subprocesos dentro de LiveAPI. La entrada anterior `index.live.cgi` se conserva como un acceso de compatibilidad al mismo puente.
 
-La versión 0.2.0 no iniciaba la conexión requerida por la extensión `.live.cgi`. Esto podía producir `Child failed to make LIVEAPI connection to cPanel` y texto adicional detrás de la respuesta JSON. Actualiza a 0.2.6 con el instalador de esta página y vuelve a abrir el plugin desde el icono de cPanel. El instalador conserva las selecciones de Feature Manager; no necesitas desinstalar primero.
+La versión 0.2.0 no iniciaba la conexión requerida por la extensión `.live.cgi`. Esto podía producir `Child failed to make LIVEAPI connection to cPanel` y texto adicional detrás de la respuesta JSON. Actualiza a 0.3.0 con el instalador de esta página y vuelve a abrir el plugin desde el icono de cPanel. El instalador conserva las selecciones de Feature Manager; no necesitas desinstalar primero.
 
-La versión 0.2.1 rechazaba un `CONTENT_LENGTH` vacío, que cpsrvd puede enviar en una apertura GET sin cuerpo. La versión 0.2.6 acepta el valor vacío o ausente como cero y mantiene la validación de los valores presentes. Esto corrige el error genérico «No se pudo conectar el plugin con LiveAPI de cPanel» observado al abrir la interfaz. Para consultar el detalle administrativo de un fallo, usa `grep -aF 'CCT: LiveAPI/backend request failed:' /usr/local/cpanel/logs/error_log | tail -n 10`; `-a` permite leer el registro aunque contenga bytes que grep considere binarios.
+La versión 0.2.1 rechazaba un `CONTENT_LENGTH` vacío, que cpsrvd puede enviar en una apertura GET sin cuerpo. Desde 0.2.6 (y en 0.3.0) se acepta el valor vacío o ausente como cero y se mantiene la validación de los valores presentes. Esto corrige el error genérico «No se pudo conectar el plugin con LiveAPI de cPanel» observado al abrir la interfaz. Para consultar el detalle administrativo de un fallo, usa `grep -aF 'CCT: LiveAPI/backend request failed:' /usr/local/cpanel/logs/error_log | tail -n 10`; `-a` permite leer el registro aunque contenga bytes que grep considere binarios.
 
 En v0.2.2, la página y las API podían responder correctamente mientras la interfaz quedaba en «Conectando cuenta…». cpsrvd devolvía los archivos `.mjs` con tipo HTML y el navegador rechazaba los módulos. Desde v0.2.3 la interfaz usa `.js` y conserva `type="module"`. Actualiza y vuelve a abrir el plugin para cargar la nueva entrada; no se requiere cambiar la configuración MIME del servidor.
 

@@ -1,6 +1,6 @@
-import {categories, formatBytes, formatPercent, percent, totals, candidateRows, storageSegments} from './model.js?v=0.2.6';
-import {setupMailCleanup} from './mail.js?v=0.2.6';
-import {createActivity, renderDetails, resultSummary} from './activity.js?v=0.2.6';
+import {categories, formatBytes, formatPercent, percent, totals, candidateRows, storageSegments} from './model.js?v=0.3.0';
+import {setupMailCleanup} from './mail.js?v=0.3.0';
+import {createActivity, renderDetails, resultSummary} from './activity.js?v=0.3.0';
 const $ = id => document.getElementById(id);
 const demo = document.body.dataset.demo === 'true';
 const state={items:[],selected:new Set(),quota:{},category:'all',page:0,pageSize:9,busy:false,scannedAt:0,storage:{status:'loading'},storageStale:false,scanJob:null,analysisToken:null,scanStop:false};
@@ -13,11 +13,33 @@ function node(tag, cls, text) { const el=document.createElement(tag); if(cls)el.
 function memberCount(item){const count=item.members.length;return `${count} ${item.category==='trash'?(count===1?'archivo':'archivos'):(count===1?'mensaje':'mensajes')}`;}
 function message(text,error=false){$('notice').textContent=text;$('notice').classList.toggle('error',error);$('notice').hidden=false;}
 function warnings(messages=[],failures=[]){renderDetails($('warnings'),messages,failures);}
+function spamItems(){return state.items.filter(item=>item.selectable&&item.category==='spam');}
 function cacheNotice(refresh){
   if(!refresh)return;
   $('cache-notice').hidden=false;$('cache-message').textContent=refresh.message;
-  const minutes=Math.ceil((refresh.retry_after_seconds||300)/60);
-  $('cache-retry').textContent=`Si aún no ves el cambio, vuelve a consultar en ${minutes} minutos. Es un intervalo sugerido; el plazo de actualización depende del servidor.`;
+  if(refresh.status==='built'){
+    $('cache-retry').textContent='Si cPanel aún muestra un valor anterior en otra pantalla, vuelve a abrir Uso del disco o pulsa «Refrescar uso en cPanel».';
+    return;
+  }
+  if(refresh.status==='building'){
+    $('cache-retry').textContent='Reintentando automáticamente mientras cPanel termina de regenerar la caché.';
+    return;
+  }
+  const seconds=Math.max(1,refresh.retry_after_seconds||30);
+  $('cache-retry').textContent=`Si aún no ves el cambio, vuelve a consultar en unos ${seconds} segundos o usa «Refrescar uso en cPanel».`;
+}
+async function followCacheRefresh(initial){
+  let refresh=initial;
+  for(let attempt=0;attempt<8&&refresh&&['building','cleared','pending'].includes(refresh.status);attempt++){
+    cacheNotice(refresh);
+    await new Promise(resolve=>setTimeout(resolve,Math.max(1000,(refresh.retry_after_seconds||3)*1000)));
+    const data=await request('refresh',{poll:true});
+    refresh=data.cache_refresh;state.quota=data.quota;
+    if(data.storage){state.storage=data.storage;state.storageStale=false;renderStorage();}
+    renderQuota();
+  }
+  cacheNotice(refresh);
+  return refresh;
 }
 async function request(action,body){
   const url=demo ? new URL(`/api/${action}`,location.href) : new URL(location.href);
@@ -122,6 +144,8 @@ function renderSelection(){
   $('hidden-selected').textContent=hidden?`${hidden} fuera del filtro actual`:'';
   $('review').disabled=state.busy||!t.picked.length;
   $('clear-selection').disabled=state.busy||!t.picked.length;
+  $('select-spam').disabled=state.busy||!spamItems().length;
+  $('empty-spam').disabled=state.busy||!spamItems().length;
   $('selection-breakdown').replaceChildren();
   for(const [key,label] of Object.entries(categories)){
     if(key==='all')continue;
@@ -140,7 +164,7 @@ function renderSelection(){
   renderStorage();
 }
 function render(){renderQuota();renderTabs();renderTable();renderSelection();}
-function busy(value){state.busy=value;document.body.classList.toggle('loading',value);$('scan').disabled=value;$('refresh-quota').disabled=value;$('reset-demo').disabled=value;for(const id of ['search','age','sort'])$(id).disabled=value;mailControls?.setBusy(value);render();if(!value&&state.storageStale&&state.scannedAt)loadStorage();}
+function busy(value){state.busy=value;document.body.classList.toggle('loading',value);$('scan').disabled=value;$('refresh-quota').disabled=value;$('reset-demo').disabled=value;$('select-spam').disabled=value||!spamItems().length;$('empty-spam').disabled=value||!spamItems().length;for(const id of ['search','age','sort'])$(id).disabled=value;mailControls?.setBusy(value);render();if(!value&&state.storageStale&&state.scannedAt)loadStorage();}
 async function scan(){
   if(state.busy)return;
   const ticket=activity.begin({title:'Generando tu análisis',message:'Preparando la revisión por etapas…'});
@@ -184,7 +208,7 @@ async function performDelete(event){
   mailControls?.invalidate();
   $('confirmation').close();busy(true);
   const ticket=activity.begin({title:demo?'Simulando limpieza':'Liberando espacio',message:'Validando la selección y procesando los elementos confirmados.',completed:0,total:items.length});
-  let deleted=0,estimated=0,failures=[];const notices=[];
+  let deleted=0,estimated=0,failures=[];const notices=[];let lastRefresh=null;
   try{
     for(let offset=0;offset<items.length;offset+=250){
       const result=await request('delete',{items:items.slice(offset,offset+250),confirm:'ELIMINAR',backups_ack:backupAck,analysis_token:state.analysisToken});
@@ -192,8 +216,12 @@ async function performDelete(event){
       state.items=state.items.filter(i=>!ids.has(i.id));for(const id of ids)state.selected.delete(id);state.quota=result.quota;
       for(const failure of result.failed)state.selected.delete(failure.id);
       notices.push(...(result.warnings||[]));if(result.quota?.error)notices.push(result.quota.error);render();
-      cacheNotice(result.cache_refresh);
+      lastRefresh=result.cache_refresh;cacheNotice(lastRefresh);
       activity.update(ticket,{completed:Math.min(offset+250,items.length),message:`${deleted} eliminados · ${failures.length} pendientes. Continuamos con tu selección.`});
+    }
+    if(lastRefresh){
+      activity.update(ticket,{message:'Regenerando la caché de uso de disco en cPanel…'});
+      await followCacheRefresh(lastRefresh);
     }
     message(resultSummary({deleted,bytes:estimated,failed:failures.length,demo}),!!failures.length);
     warnings(notices,failures);
@@ -204,15 +232,31 @@ $('scan').addEventListener('click',scan);
 $('activity-stop').addEventListener('click',()=>{state.scanStop=true;$('activity-stop').disabled=true;$('activity-stop').textContent='Pausando…';});
 $('storage-refresh').addEventListener('click',loadStorage);
 $('refresh-quota').textContent='Refrescar uso en cPanel ↻';
-$('refresh-quota').addEventListener('click',async()=>{if(state.busy)return;const ticket=activity.begin({title:'Actualizando uso de disco',message:'Espera mientras consultamos la cuota de tu cuenta.'});busy(true);try{const data=await request('refresh',{});state.quota=data.quota;state.storageStale=true;cacheNotice(data.cache_refresh);data.quota.error?message('No se pudo consultar la cuota. Revisa los detalles.',true):message('Cuota actualizada.');warnings(data.quota.error?[data.quota.error]:[]);}catch(err){message('No se pudo actualizar la cuota. Revisa los detalles.',true);warnings([err.message]);}finally{busy(false);activity.end(ticket);}});
+$('refresh-quota').addEventListener('click',async()=>{
+  if(state.busy)return;
+  const ticket=activity.begin({title:'Actualizando uso de disco',message:'Vaciando y regenerando la caché de cPanel…'});
+  busy(true);
+  try{
+    const data=await request('refresh',{});
+    state.quota=data.quota;
+    if(data.storage){state.storage=data.storage;state.storageStale=false;renderStorage();}
+    else state.storageStale=true;
+    await followCacheRefresh(data.cache_refresh);
+    data.quota.error?message('No se pudo consultar la cuota. Revisa los detalles.',true):message('Cuota y caché de disco actualizadas.');
+    warnings(data.quota.error?[data.quota.error]:[]);
+  }catch(err){message('No se pudo actualizar la cuota. Revisa los detalles.',true);warnings([err.message]);}
+  finally{busy(false);activity.end(ticket);}
+});
 $('select-all').addEventListener('change',()=>{for(const item of visible().flatMap(row=>row.members))$('select-all').checked?state.selected.add(item.id):state.selected.delete(item.id);renderTable();renderSelection();});
+$('select-spam').addEventListener('click',()=>{const items=spamItems();if(!items.length)return;for(const item of items)state.selected.add(item.id);state.category='spam';state.page=0;render();});
+$('empty-spam').addEventListener('click',()=>{const items=spamItems();if(!items.length)return;state.selected=new Set(items.map(item=>item.id));state.category='spam';state.page=0;render();review();});
 $('clear-selection').addEventListener('click',()=>{state.selected.clear();renderTable();renderSelection();});
 for(const id of ['search','age','sort'])$(id).addEventListener(id==='search'?'input':'change',()=>{state.page=0;renderTable();renderSelection();});
 $('previous-page').addEventListener('click',()=>{state.page--;renderTable();});$('next-page').addEventListener('click',()=>{state.page++;renderTable();});
 $('review').addEventListener('click',review);for(const button of document.querySelectorAll('.close-dialog'))button.addEventListener('click',()=>$('confirmation').close());
 $('confirm-word').addEventListener('input',validateConfirm);$('backup-ack').addEventListener('change',validateConfirm);$('confirm-form').addEventListener('submit',performDelete);
 if(demo){$('demo-banner').hidden=false;$('reset-demo').addEventListener('click',async()=>{try{await request('reset',{});mailControls?.invalidate();scan();}catch(err){message(err.message,true);}});}
-mailControls=setupMailCleanup({request,demo,isBusy:()=>state.busy,setBusy:busy,cacheNotice,activity,
+mailControls=setupMailCleanup({request,demo,isBusy:()=>state.busy,setBusy:busy,cacheNotice,followCacheRefresh,activity,
   onQuota(quota){state.quota=quota;render();},
   onResult(result){const ids=new Set(result.deleted_ids);state.items=state.items.filter(i=>!ids.has(i.id));for(const id of ids)state.selected.delete(id);state.quota=result.quota;state.storageStale=true;render();}
 });

@@ -28,6 +28,7 @@ class API:
             {'mailbox':'INBOX.Proyectos.Ñ','guid':'d'*32,'messages':1}]
         return {}
     def clear_disk_cache(self):return {'status':'cleared','retry_after_seconds':300}
+    def refresh_disk_usage(self,rebuild=True,poll=False):return {'status':'built','retry_after_seconds':0,'retry_is_guaranteed':False}
 
 
 class MailTests(unittest.TestCase):

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>CCT · Limpieza de espacio</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=0.2.6">
-  <script type="module" src="app.js?v=0.2.6"></script>
+  <link rel="stylesheet" href="styles.css?v=0.3.0">
+  <script type="module" src="app.js?v=0.3.0"></script>
 </head>
 <body data-demo="false">
   <div id="demo-banner" class="demo-banner" hidden><span>VISTA PREVIA · Datos de ejemplo. La limpieza es una simulación.</span><button id="reset-demo">Reiniciar demo ↻</button></div>
@@ -39,7 +39,7 @@
         <div class="explorer-header"><div><h2 id="explorer-title">Encuentra tu próximo espacio libre</h2><p id="scan-meta">Preparando el análisis de tu cuenta…</p></div><span class="readonly-label"><span aria-hidden="true">◎</span> Tú decides qué se elimina</span></div>
         <div class="category-tabs" id="categories" role="group" aria-label="Filtrar por categoría"></div>
         <div class="toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Buscar archivo o ubicación…" aria-label="Buscar archivo o ubicación"></label><select id="age" aria-label="Filtrar por última modificación"><option value="0">Cualquier fecha</option><option value="7">Más de 7 días</option><option value="30">Más de 30 días</option><option value="90">Más de 90 días</option></select><select id="sort" aria-label="Ordenar archivos"><option value="size">Mayor tamaño primero</option><option value="oldest">Más antiguos primero</option><option value="name">Nombre A–Z</option></select></div>
-        <div class="selection-strip"><span id="visible-count">Cargando…</span><button id="clear-selection" class="text-button" disabled>Limpiar selección</button></div>
+        <div class="selection-strip"><span id="visible-count">Cargando…</span><div class="selection-actions"><button id="select-spam" class="text-button" type="button" disabled>Seleccionar spam</button><button id="empty-spam" class="text-button" type="button" disabled>Vaciar spam…</button><button id="clear-selection" class="text-button" disabled>Limpiar selección</button></div></div>
         <div class="table-wrap"><table><thead><tr><th class="check-cell"><input type="checkbox" id="select-all" aria-label="Seleccionar candidatos visibles"></th><th>Archivo o grupo / ubicación</th><th>Última modificación</th><th class="size-cell">En disco</th><th>Revisión</th></tr></thead><tbody id="file-list"></tbody></table></div>
         <div id="empty" class="empty" hidden><div>◌</div><h3>No hay archivos con este filtro</h3><p>Prueba otra categoría, fecha o búsqueda.</p></div>
         <div class="table-footer"><span id="page-info">—</span><div><button id="previous-page" class="page-button" aria-label="Página anterior">←</button><button id="next-page" class="page-button" aria-label="Página siguiente">→</button></div></div>
