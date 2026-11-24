@@ -110,6 +110,10 @@ install -m 0755 -o root -g root "$SOURCE/whm/addon_cct.cgi" "$WHM_STAGE/addon_cc
 for filename in index.html app.js styles.css cct.conf cct.tmpl; do
     install -m 0644 -o root -g root "$SOURCE/whm/$filename" "$WHM_STAGE/$filename"
 done
+# Shared UI modules (same files as the cPanel theme plugin).
+for filename in model.js activity.js; do
+    install -m 0644 -o root -g root "$SOURCE/plugin/$filename" "$WHM_STAGE/$filename"
+done
 # WHM chrome template (sidebar/header) lives with the other whostmgr templates.
 install -m 0644 -o root -g root "$SOURCE/whm/cct.tmpl" /usr/local/cpanel/whostmgr/docroot/templates/cct.tmpl
 /usr/local/cpanel/3rdparty/bin/perl -c "$WHM_STAGE/addon_cct.cgi"

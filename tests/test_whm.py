@@ -87,10 +87,16 @@ class WhmBackendTests(unittest.TestCase):
 
     def test_whm_ui_keeps_cpsession_relative_assets(self):
         html = (ROOT / 'whm' / 'index.html').read_text(encoding='utf-8')
+        app = (ROOT / 'whm' / 'app.js').read_text(encoding='utf-8')
         self.assertNotIn('/cgi/addon_cct.cgi?action=asset', html)
         self.assertIn('href="?action=asset&file=styles.css', html)
         self.assertIn('src="?action=asset&file=app.js', html)
-        self.assertIn('window.CCT_API = window.CCT_API || location.pathname', html)
+        # Inline import maps / scripts are blocked by CSP script-src 'self'.
+        self.assertNotIn('importmap', html)
+        self.assertNotIn('<script>window.CCT_API', html)
+        self.assertIn("action', 'asset'", app)
+        self.assertIn("import(assetUrl('model.js'))", app)
+        self.assertIn("import(assetUrl('activity.js'))", app)
 
     def test_whm_wraps_spa_in_whostmgr_template(self):
         cgi = (ROOT / 'whm' / 'addon_cct.cgi').read_text(encoding='utf-8')

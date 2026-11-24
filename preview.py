@@ -85,7 +85,7 @@ def fixture():
     storage["other"]=used-sum(storage.values())
     return {"items":items,"mail_items":mail_items,"partial":False,"warnings":[],"scanned_at":now,"visited":8421,
             "storage":{"status":"ok","basis":"allocated_bytes","categories":[{"key":key,"bytes":value} for key,value in storage.items()],"source":"demo"},
-            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.4.4",
+            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.4.5",
             "quota":{"limit_bytes":limit,"used_bytes":used,"free_bytes":limit-used,"source":"demo"}}
 
 
@@ -167,12 +167,9 @@ class Preview(BaseHTTPRequestHandler):
         action = params.get("action", "page")
         if action in {"page", ""}:
             html = (WHM / "index.html").read_text(encoding="utf-8")
-            # Preview is served at /whm; rewrite relative asset/API URLs to that path.
-            html = html.replace('window.CCT_API = window.CCT_API || location.pathname;',
-                                'window.CCT_API = "/whm";')
+            # Preview is served at /whm; pathname already drives API + assetUrl().
             html = html.replace('href="?action=asset&file=', 'href="/whm?action=asset&file=')
             html = html.replace('src="?action=asset&file=', 'src="/whm?action=asset&file=')
-            html = html.replace('"?action=asset&file=', '"/whm?action=asset&file=')
             banner = (
                 '<div class="whm-banner" role="status" style="margin:12px 4% 0">'
                 'Demostración local con datos ficticios. No es un servidor WHM real.'

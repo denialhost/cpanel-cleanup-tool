@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.4.5
+
+- El dashboard WHM quedaba inerte: CSP bloqueaba el importmap y no se instalaban `model.js`/`activity.js` en cgi/cct. Los módulos se cargan vía `?action=asset` sin scripts inline.
+
 ## 0.4.4
 
 - Envia `Content-type: text/html` antes de la plantilla WHM; sin eso cpsrvd servia text/plain y el navegador mostraba el HTML en crudo.

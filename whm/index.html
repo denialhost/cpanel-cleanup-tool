@@ -4,20 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>CCT · WHM Limpieza de espacio</title>
-  <!-- Relative to this CGI so /cpsess…/cgi/addon_cct.cgi keeps the session prefix. -->
-  <script>window.CCT_API = window.CCT_API || location.pathname;</script>
-  <link rel="stylesheet" href="?action=asset&file=styles.css&v=0.4.4">
-  <script type="importmap">
-  {
-    "imports": {
-      "./model.js": "?action=asset&file=model.js",
-      "./activity.js": "?action=asset&file=activity.js",
-      "./model.js?v=0.4.4": "?action=asset&file=model.js",
-      "./activity.js?v=0.4.4": "?action=asset&file=activity.js"
-    }
-  }
-  </script>
-  <script type="module" src="?action=asset&file=app.js&v=0.4.4"></script>
+  <!-- Relative query URLs keep the /cpsess…/cgi/addon_cct.cgi session prefix. -->
+  <!-- No inline scripts: CSP script-src 'self' blocks import maps and would leave a dead UI. -->
+  <link rel="stylesheet" href="?action=asset&file=styles.css&v=0.4.5">
+  <script type="module" src="?action=asset&file=app.js&v=0.4.5"></script>
 </head>
 <body>
   <header class="topbar">

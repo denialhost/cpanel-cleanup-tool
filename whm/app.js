@@ -1,5 +1,16 @@
-import {categories, formatBytes, formatPercent, totals, candidateRows} from './model.js';
-import {createActivity, renderDetails, resultSummary} from './activity.js';
+// Load sibling modules through the same CGI asset action. Static ./model.js imports
+// would resolve next to addon_cct.cgi (404), and an importmap is blocked by CSP.
+function assetUrl(file) {
+  const url = new URL(window.CCT_API || location.pathname, location.origin);
+  url.search = '';
+  url.searchParams.set('action', 'asset');
+  url.searchParams.set('file', file);
+  return url.href;
+}
+const [{categories, formatBytes, formatPercent, totals, candidateRows}, {createActivity, renderDetails, resultSummary}] = await Promise.all([
+  import(assetUrl('model.js')),
+  import(assetUrl('activity.js')),
+]);
 
 const $ = id => document.getElementById(id);
 const state = {
