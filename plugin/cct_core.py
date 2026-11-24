@@ -323,14 +323,18 @@ def maildir_paths_by_guid(account, base, on_visit=None):
     """Map Maildir v3 GUID -> relative path under the account mail tree."""
     paths = [base]
     stop = False
-    with open_parent(account, base + "/.cct-anchor") as (fd, _):
-        with os.scandir(fd) as entries:
-            for entry in entries:
-                if on_visit and on_visit():
-                    stop = True
-                    break
-                if entry.name.startswith(".") and entry.is_dir(follow_symlinks=False):
-                    paths.append(base + "/" + entry.name)
+    try:
+        with open_parent(account, base + "/.cct-anchor") as (fd, _):
+            with os.scandir(fd) as entries:
+                for entry in entries:
+                    if on_visit and on_visit():
+                        stop = True
+                        break
+                    if entry.name.startswith(".") and entry.is_dir(follow_symlinks=False):
+                        paths.append(base + "/" + entry.name)
+    except FileNotFoundError:
+        # No mail tree yet: callers fall back to the classic .Folder path.
+        return {}
     matches = {}
     for relative in paths:
         if stop or (on_visit and on_visit()):
