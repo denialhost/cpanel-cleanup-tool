@@ -3,15 +3,27 @@
 use strict;
 use warnings;
 use lib '/usr/local/cpanel';
-use Cpanel::JSON          ();
-use Cpanel::SafeRun::Object ();
 use Encode                qw(encode);
 use IPC::Open2            qw(open2);
 use IO::Handle            ();
 use MIME::Base64          qw(encode_base64);
 use JSON::PP              ();
 
-my $json = JSON::PP->new->ascii(1);
+my $json = JSON::PP->new->ascii(1)->allow_nonref(1);
+
+# Load cPanel helpers only when needed so `perl -c` works outside WHM (CI).
+sub cpanel_run {
+    require Cpanel::SafeRun::Object;
+    return Cpanel::SafeRun::Object->new(@_);
+}
+
+sub decode_cpanel_json {
+    my ($text) = @_;
+    my $document = eval { $json->decode($text) };
+    die 'Invalid JSON' unless ref($document) eq 'HASH';
+    return $document;
+}
+
 my $plugin = '/usr/local/cpanel/base/frontend/jupiter/cct';
 my $whm_ui = '/usr/local/cpanel/whostmgr/docroot/cgi/cct';
 my $deadline = time() + 120;
@@ -105,15 +117,13 @@ my %allowed = map { $_ => 1 } (
 
 sub whm_json {
     my (@args) = @_;
-    my $run = Cpanel::SafeRun::Object->new(
+    my $run = cpanel_run(
         program => '/usr/local/cpanel/bin/whmapi1',
         args    => [ @args, '--output=json' ],
         timeout => 30,
     );
     die 'WHM API failed' if !$run || $run->CHILD_ERROR();
-    my $document = Cpanel::JSON::Load($run->stdout());
-    die 'Invalid WHM response' unless ref($document) eq 'HASH';
-    return $document;
+    return decode_cpanel_json($run->stdout());
 }
 
 sub uapi_as_user {
@@ -124,13 +134,13 @@ sub uapi_as_user {
         next unless defined $value && !ref($value);
         push @args, "$key=$value";
     }
-    my $run = Cpanel::SafeRun::Object->new(
+    my $run = cpanel_run(
         program => '/usr/local/cpanel/bin/uapi',
         args    => \@args,
         timeout => 12,
     );
     die 'UAPI failed' if !$run || $run->CHILD_ERROR();
-    return Cpanel::JSON::Load($run->stdout());
+    return decode_cpanel_json($run->stdout());
 }
 
 sub api2_as_user {
@@ -141,13 +151,13 @@ sub api2_as_user {
         next unless defined $value && !ref($value);
         push @args, "$key=$value";
     }
-    my $run = Cpanel::SafeRun::Object->new(
+    my $run = cpanel_run(
         program => '/usr/local/cpanel/bin/cpapi2',
         args    => \@args,
         timeout => 12,
     );
     die 'API2 failed' if !$run || $run->CHILD_ERROR();
-    return Cpanel::JSON::Load($run->stdout());
+    return decode_cpanel_json($run->stdout());
 }
 
 my ($reader, $writer);
