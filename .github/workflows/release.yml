@@ -32,6 +32,7 @@ jobs:
           bash -n install.sh uninstall.sh bootstrap.sh
           perl -c plugin/index.live.pl
           perl -c plugin/index.live.cgi
+          perl -c whm/addon_cct.cgi
       - name: Build package
         run: python tools/package.py
 
