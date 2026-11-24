@@ -88,7 +88,7 @@ def fixture():
     storage["other"]=used-sum(storage.values())
     return {"items":items,"mail_items":mail_items,"partial":False,"warnings":[],"scanned_at":now,"visited":8421,
             "storage":{"status":"ok","basis":"allocated_bytes","categories":[{"key":key,"bytes":value} for key,value in storage.items()],"source":"demo"},
-            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.4.8",
+            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.4.9",
             "quota":{"limit_bytes":limit,"used_bytes":used,"free_bytes":limit-used,"source":"demo"}}
 
 

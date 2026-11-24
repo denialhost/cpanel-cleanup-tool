@@ -49,21 +49,6 @@ dialog::backdrop{background:#20302075}.confirm-list{max-height:220px;overflow:au
 .activity-dots span:nth-child(2){animation-delay:.2s}.activity-dots span:nth-child(3){animation-delay:.4s}
 @keyframes blink{to{opacity:.3}}
 tr.is-selected{background:#f1f8ed}
-.usage-overview{background:#fff;border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin:0 0 16px}
-.usage-overview-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px}
-.usage-overview h2{margin:0 0 4px;font-size:1.05rem;font-weight:600}
-.usage-overview p{margin:0;color:var(--muted);font-size:.88rem}
-.usage-summary{display:flex;gap:8px;flex-wrap:wrap}
-.usage-pill{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#eef3ea;color:#4f6754;font-size:.78rem;font-weight:600}
-.usage-pill.warn{background:#f7efd8;color:#8a6d2f}.usage-pill.critical{background:#f8e8e2;color:#9a4d3a}
-.usage-chart{overflow:auto;max-height:360px}
-.usage-chart svg{width:100%;height:auto;display:block;min-width:520px}
-.usage-chart-label,.usage-chart-value{font:600 12px "Segoe UI",system-ui,sans-serif;fill:#405547}
-.usage-chart-value{font-weight:550;fill:#5b6b5f}
-.usage-chart-track{fill:#edf1e8}
-.usage-chart-bar.tone-ok{fill:#5f9a73}.usage-chart-bar.tone-warn{fill:#c4a14a}
-.usage-chart-bar.tone-high{fill:#c47a4a}.usage-chart-bar.tone-critical{fill:#b35445}
-.usage-chart-empty{margin:8px 0;color:var(--muted);font-size:.9rem}
 .sort-label{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:.85rem;white-space:nowrap}
 .usage-cell{display:flex;align-items:center;gap:8px;min-width:0}
 .usage-cell strong{font-variant-numeric:tabular-nums;white-space:nowrap}

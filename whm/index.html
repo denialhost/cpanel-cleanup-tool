@@ -6,8 +6,8 @@
   <title>CCT · WHM Limpieza de espacio</title>
   <!-- Relative query URLs keep the /cpsess…/cgi/addon_cct.cgi session prefix. -->
   <!-- No inline scripts: CSP script-src 'self' blocks import maps and would leave a dead UI. -->
-  <link rel="stylesheet" href="?action=asset&file=styles.css&v=0.4.8">
-  <script type="module" src="?action=asset&file=app.js&v=0.4.8"></script>
+  <link rel="stylesheet" href="?action=asset&file=styles.css&v=0.4.9">
+  <script type="module" src="?action=asset&file=app.js&v=0.4.9"></script>
 </head>
 <body>
   <header class="topbar">
@@ -25,16 +25,6 @@
         <button id="reload-accounts" class="button secondary" type="button">Actualizar listado ↻</button>
       </div>
       <div id="list-notice" class="notice" role="status" hidden></div>
-      <section class="usage-overview" aria-labelledby="usage-chart-title">
-        <div class="usage-overview-head">
-          <div>
-            <h2 id="usage-chart-title">Uso respecto al plan</h2>
-            <p id="usage-chart-caption">Las cuentas más llenas primero.</p>
-          </div>
-          <div id="usage-summary" class="usage-summary" aria-live="polite"></div>
-        </div>
-        <div id="usage-chart" class="usage-chart" role="img" aria-label="Gráfico de uso de disco por cuenta"></div>
-      </section>
       <div class="toolbar">
         <label class="search"><span aria-hidden="true">⌕</span><input id="account-search" type="search" placeholder="Buscar usuario o dominio…" aria-label="Buscar cuenta"></label>
         <label class="sort-label">Ordenar

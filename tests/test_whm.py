@@ -98,7 +98,7 @@ class WhmBackendTests(unittest.TestCase):
         self.assertNotIn('import(', app)
         self.assertTrue((ROOT / 'whm' / 'app.ui.js').is_file())
         self.assertIn('id="account-sort"', html)
-        self.assertIn('id="usage-chart"', html)
+        self.assertNotIn('id="usage-chart"', html)
         self.assertIn('site-footer', html)
         self.assertIn('DenialHost', html)
         self.assertIn("sort: 'usage'", (ROOT / 'whm' / 'app.ui.js').read_text(encoding='utf-8'))

@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.4.9
+
+- WHM: elimina el gráfico de uso de la cabecera; se mantienen ordenación, columna de % y pie.
+
 ## 0.4.8
 
 - Corrige el empaquetado en CI con Python 3.9 (``Path.write_text(..., newline=)`` solo existe desde 3.10).

@@ -5,7 +5,6 @@ const state = {
 };
 const activity = createActivity();
 const icons = {trash: '♧', logs: '≡', backups: '▤', spam: '✉', mail_trash: '✉'};
-const CHART_LIMIT = 12;
 
 function parseDisk(value) {
   if (value == null) return null;
@@ -156,77 +155,8 @@ function visibleAccounts() {
   return sortedAccounts(filtered);
 }
 
-function renderUsageSummary(rows) {
-  const known = rows.filter(row => row.usagePct != null);
-  const critical = known.filter(row => row.usagePct >= 95).length;
-  const high = known.filter(row => row.usagePct >= 85 && row.usagePct < 95).length;
-  $('usage-summary').replaceChildren(
-    node('span', 'usage-pill', `${rows.length} cuentas`),
-    node('span', 'usage-pill warn', `${high} ≥ 85 %`),
-    node('span', 'usage-pill critical', `${critical} ≥ 95 %`)
-  );
-  $('usage-chart-caption').textContent = known.length
-    ? `Top ${Math.min(CHART_LIMIT, known.length)} por porcentaje del plan.`
-    : 'Sin datos de cuota para graficar.';
-}
-
-function renderUsageChart(rows) {
-  const chart = $('usage-chart');
-  chart.replaceChildren();
-  const ranked = rows
-    .filter(row => row.usagePct != null)
-    .slice()
-    .sort((a, b) => (b.usagePct - a.usagePct) || compareText(a.user, b.user))
-    .slice(0, CHART_LIMIT);
-  if (!ranked.length) {
-    chart.append(node('p', 'usage-chart-empty', 'No hay porcentajes de uso disponibles.'));
-    return;
-  }
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  const rowHeight = 28;
-  const labelWidth = 118;
-  const width = 720;
-  const height = ranked.length * rowHeight + 8;
-  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-  svg.setAttribute('role', 'presentation');
-  ranked.forEach((row, index) => {
-    const y = index * rowHeight + 4;
-    const pct = Math.max(0, Math.min(100, row.usagePct));
-    const barMax = width - labelWidth - 70;
-    const barWidth = Math.max(2, (pct / 100) * barMax);
-    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    label.setAttribute('x', '0');
-    label.setAttribute('y', String(y + 16));
-    label.setAttribute('class', 'usage-chart-label');
-    label.textContent = row.user;
-    const track = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    track.setAttribute('x', String(labelWidth));
-    track.setAttribute('y', String(y + 6));
-    track.setAttribute('width', String(barMax));
-    track.setAttribute('height', '12');
-    track.setAttribute('rx', '3');
-    track.setAttribute('class', 'usage-chart-track');
-    const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    bar.setAttribute('x', String(labelWidth));
-    bar.setAttribute('y', String(y + 6));
-    bar.setAttribute('width', String(barWidth));
-    bar.setAttribute('height', '12');
-    bar.setAttribute('rx', '3');
-    bar.setAttribute('class', `usage-chart-bar tone-${usageTone(pct)}`);
-    const value = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    value.setAttribute('x', String(labelWidth + barMax + 8));
-    value.setAttribute('y', String(y + 16));
-    value.setAttribute('class', 'usage-chart-value');
-    value.textContent = formatPercent(pct);
-    svg.append(label, track, bar, value);
-  });
-  chart.append(svg);
-}
-
 function renderAccountList() {
   const rows = visibleAccounts();
-  renderUsageSummary(state.accounts);
-  renderUsageChart(state.filter ? rows : state.accounts);
   $('account-list').replaceChildren();
   $('account-empty').hidden = rows.length > 0;
   for (const row of rows) {
