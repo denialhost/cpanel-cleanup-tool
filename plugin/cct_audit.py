@@ -28,12 +28,15 @@ def _owned_dir(fd, account, private=False):
 def _open_or_mkdir(parent_fd, name, account):
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     try:
-        child = os.open(name, flags, dir_fd=parent_fd)
-    except FileNotFoundError:
-        os.mkdir(name, 0o700, dir_fd=parent_fd)
-        if os.geteuid() == 0:
-            os.chown(name, account.uid, -1, dir_fd=parent_fd, follow_symlinks=False)
-        child = os.open(name, flags, dir_fd=parent_fd)
+        try:
+            child = os.open(name, flags, dir_fd=parent_fd)
+        except FileNotFoundError:
+            os.mkdir(name, 0o700, dir_fd=parent_fd)
+            if os.geteuid() == 0:
+                os.chown(name, account.uid, -1, dir_fd=parent_fd, follow_symlinks=False)
+            child = os.open(name, flags, dir_fd=parent_fd)
+    except OSError as exc:
+        raise CleanupError("El directorio de auditoría no es válido o es un enlace simbólico.") from exc
     try:
         _owned_dir(child, account, private=True)
     except CleanupError:
@@ -47,7 +50,10 @@ def _ensure_audit_dir(account):
     if os.name != "posix":
         raise CleanupError("La auditoría requiere Linux.")
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-    home_fd = os.open(str(account.home), flags)
+    try:
+        home_fd = os.open(str(account.home), flags)
+    except OSError as exc:
+        raise CleanupError("No se pudo abrir el home de la cuenta para auditoría.") from exc
     try:
         _owned_dir(home_fd, account, private=False)
         cct_fd = _open_or_mkdir(home_fd, ".cct", account)
