@@ -9,11 +9,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "artifacts"
 OUT.mkdir(exist_ok=True)
+# Refresh the WHM single-file UI bundle before packaging.
+import runpy
+runpy.run_path(str(ROOT / "tools" / "bundle_whm_app.py"), run_name="__main__")
 version = (ROOT / "VERSION").read_text(encoding="ascii").strip()
 if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
     raise SystemExit("Invalid VERSION")
 target = OUT / ("cct-" + version + ".tar.gz")
-files = [ROOT / n for n in ("README.md", "CHANGELOG.md", "VERSION", "preview.py", "package.json", "install.json", "uninstall.json", "install.sh", "uninstall.sh", "bootstrap.sh", "tools/package.py")]
+files = [ROOT / n for n in ("README.md", "CHANGELOG.md", "VERSION", "preview.py", "package.json", "install.json", "uninstall.json", "install.sh", "uninstall.sh", "bootstrap.sh", "tools/package.py", "tools/bundle_whm_app.py")]
 files += sorted(p for p in (ROOT / "tests").iterdir() if p.is_file())
 files += sorted(p for p in (ROOT / "plugin").iterdir() if p.is_file() and p.suffix != ".pyc")
 files += sorted(p for p in (ROOT / "whm").iterdir() if p.is_file())

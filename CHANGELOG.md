@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.4.6
+
+- WHM: allowlist corregida a ``whm/listaccts/list`` (el listado de cuentas devolvía 500).
+- WHM: ``app.js`` pasa a ser un único módulo empaquetado; los imports relativos desde el CGI resolvían mal y dejaban la UI inerte.
+
 ## 0.4.5
 
 - El dashboard WHM quedaba inerte: CSP bloqueaba el importmap y no se instalaban `model.js`/`activity.js` en cgi/cct. Los módulos se cargan vía `?action=asset` sin scripts inline.

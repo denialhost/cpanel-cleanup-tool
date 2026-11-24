@@ -138,7 +138,8 @@ my %allowed = map { $_ => 1 } (
     'uapi/Mailboxes/expunge_messages_for_mailbox_guid',
     'api2/DiskUsage/clearcache', 'api2/DiskUsage/buildcache',
     'api2/DiskUsage/fetchdiskusagewithextras',
-    'whm/listaccts'
+    # PipeTransport.call(version, module, function) → version/module/function
+    'whm/listaccts/list'
 );
 
 sub whm_json {

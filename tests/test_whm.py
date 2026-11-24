@@ -72,7 +72,7 @@ class WhmBackendTests(unittest.TestCase):
         self.assertIn("$< == 0", source)
         self.assertIn("CCT_TARGET_USER", source)
         self.assertIn("CCT_VIA", source)
-        self.assertIn("'whm/listaccts'", source)
+        self.assertIn("'whm/listaccts/list'", source)
         self.assertIn('uapi/Quota/get_quota_info', source)
 
     def test_whm_appconfig_has_menu_entry(self):
@@ -91,12 +91,12 @@ class WhmBackendTests(unittest.TestCase):
         self.assertNotIn('/cgi/addon_cct.cgi?action=asset', html)
         self.assertIn('href="?action=asset&file=styles.css', html)
         self.assertIn('src="?action=asset&file=app.js', html)
-        # Inline import maps / scripts are blocked by CSP script-src 'self'.
+        # Inline import maps are blocked by CSP; WHM ships a single bundled module.
         self.assertNotIn('importmap', html)
         self.assertNotIn('<script>window.CCT_API', html)
-        self.assertIn("action', 'asset'", app)
-        self.assertIn("import(assetUrl('model.js'))", app)
-        self.assertIn("import(assetUrl('activity.js'))", app)
+        self.assertIn('CCT WHM bundle', app)
+        self.assertNotIn('import(', app)
+        self.assertTrue((ROOT / 'whm' / 'app.ui.js').is_file())
 
     def test_whm_wraps_spa_in_whostmgr_template(self):
         cgi = (ROOT / 'whm' / 'addon_cct.cgi').read_text(encoding='utf-8')
