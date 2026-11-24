@@ -1,5 +1,10 @@
 # Cambios
 
+## 0.4.3
+
+- Envuelve el panel WHM con la plantilla master.tmpl (iframe) para mostrarlo dentro del chrome de WHM, no como pagina suelta.
+- El workflow de release usa `gh release upload --clobber` para no fallar si los assets ya se subieron al crear el tag.
+
 ## 0.4.2
 
 - Corrige estilos y APIs del panel WHM bajo `/cpsess…/`: los assets ya no usan rutas absolutas `/cgi/…` que rompían la sesión.
@@ -91,3 +96,5 @@ Primera publicación para pruebas en servidores cPanel/WHM con Jupiter.
 - Pruebas automáticas en Linux y publicación de paquetes mediante GitHub Actions.
 
 La integración real con cPanel y Dovecot requiere validación en un servidor de prueba. La integración con WHMCS todavía no está implementada.
+
+

@@ -59,4 +59,5 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           version="$(cat VERSION)"
-          gh release upload "$RELEASE_TAG" "artifacts/cct-${version}.tar.gz" artifacts/SHA256SUMS artifacts/install-cct.sh artifacts/VERSION
+          # --clobber: release assets may already exist when the tag was published from the CLI.
+          gh release upload --clobber "$RELEASE_TAG" "artifacts/cct-${version}.tar.gz" artifacts/SHA256SUMS artifacts/install-cct.sh artifacts/VERSION

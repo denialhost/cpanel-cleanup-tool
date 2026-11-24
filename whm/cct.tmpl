@@ -1,0 +1,20 @@
+[%#
+  WHM chrome wrapper. The SPA loads in an iframe so our CSS does not fight WHM's.
+-%]
+[%
+WRAPPER 'master_templates/master.tmpl'
+    header = 'CCT Limpieza de espacio',
+    breadcrumburl = '/cgi/addon_cct.cgi',
+    hide_license_warnings = 1,
+%]
+<style type="text/css">
+  #cct-frame {
+    display: block;
+    width: 100%;
+    min-height: 78vh;
+    border: 0;
+    background: #f5f6f2;
+  }
+</style>
+<iframe id="cct-frame" title="CCT Limpieza de espacio" src="[% iframe_src %]"></iframe>
+[% END %]

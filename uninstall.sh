@@ -20,8 +20,9 @@ for filename in index.live.pl index.live.cgi cct_core.py cct_mail.py cct_batch.p
 done
 rmdir -- "$TARGET" 2>/dev/null || true
 rm -f -- /usr/local/cpanel/whostmgr/docroot/cgi/addon_cct.cgi
+rm -f -- /usr/local/cpanel/whostmgr/docroot/templates/cct.tmpl
 if [[ -d "$WHM_TARGET" && ! -L "$WHM_TARGET" ]]; then
-    for filename in addon_cct.cgi index.html app.js styles.css cct.conf; do
+    for filename in addon_cct.cgi index.html app.js styles.css cct.conf cct.tmpl; do
         rm -f -- "$WHM_TARGET/$filename"
     done
     rmdir -- "$WHM_TARGET" 2>/dev/null || true

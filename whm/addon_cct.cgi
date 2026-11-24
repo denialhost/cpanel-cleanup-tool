@@ -49,6 +49,30 @@ my %params = map {
 
 my $action = $params{action} // 'page';
 if (($ENV{REQUEST_METHOD} // 'GET') eq 'GET' && $action eq 'page') {
+    # Without embedded=1, wrap the SPA in WHM chrome (sidebar/header).
+    if (($params{embedded} // '') ne '1') {
+        my $script = $ENV{SCRIPT_NAME} // '/cgi/addon_cct.cgi';
+        my $iframe = $script . '?action=page&embedded=1';
+        require Cpanel::Template;
+        eval {
+            Cpanel::Template::process_template(
+                'whostmgr',
+                {
+                    template_file => 'cct.tmpl',
+                    print         => 1,
+                    iframe_src    => $iframe,
+                    app_key       => 'cct',
+                }
+            );
+            1;
+        } or do {
+            my $err = $@ // 'template error';
+            $err =~ s/[\r\n]+/ /g;
+            warn 'CCT WHM template: ', substr($err, 0, 500), "\n";
+            fail('500 Internal Server Error', 'No se pudo cargar el marco WHM de CCT.');
+        };
+        exit 0;
+    }
     my $html = do {
         open my $fh, '<:raw', "$whm_ui/index.html" or fail('500 Internal Server Error', 'Falta la interfaz WHM de CCT.');
         local $/; <$fh>;

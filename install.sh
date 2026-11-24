@@ -107,9 +107,11 @@ install -m 0644 -o root -g root "$SOURCE/plugin/icon.svg" "$SOURCE/icon.svg"
 
 # WHM root addon files (UI + CGI). Python engine remains in the Jupiter plugin dir.
 install -m 0755 -o root -g root "$SOURCE/whm/addon_cct.cgi" "$WHM_STAGE/addon_cct.cgi"
-for filename in index.html app.js styles.css cct.conf; do
+for filename in index.html app.js styles.css cct.conf cct.tmpl; do
     install -m 0644 -o root -g root "$SOURCE/whm/$filename" "$WHM_STAGE/$filename"
 done
+# WHM chrome template (sidebar/header) lives with the other whostmgr templates.
+install -m 0644 -o root -g root "$SOURCE/whm/cct.tmpl" /usr/local/cpanel/whostmgr/docroot/templates/cct.tmpl
 /usr/local/cpanel/3rdparty/bin/perl -c "$WHM_STAGE/addon_cct.cgi"
 
 if [[ -d "$TARGET" ]]; then
