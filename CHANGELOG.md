@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.4.4
+
+- Envia `Content-type: text/html` antes de la plantilla WHM; sin eso cpsrvd servia text/plain y el navegador mostraba el HTML en crudo.
+
 ## 0.4.3
 
 - Envuelve el panel WHM con la plantilla master.tmpl (iframe) para mostrarlo dentro del chrome de WHM, no como pagina suelta.

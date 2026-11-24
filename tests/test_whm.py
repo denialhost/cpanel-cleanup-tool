@@ -96,6 +96,7 @@ class WhmBackendTests(unittest.TestCase):
         cgi = (ROOT / 'whm' / 'addon_cct.cgi').read_text(encoding='utf-8')
         tmpl = (ROOT / 'whm' / 'cct.tmpl').read_text(encoding='utf-8')
         self.assertIn("Cpanel::Template::process_template", cgi)
+        self.assertIn("Content-type: text/html", cgi)
         self.assertIn("embedded", cgi)
         self.assertIn("master_templates/master.tmpl", tmpl)
         self.assertIn("iframe_src", tmpl)

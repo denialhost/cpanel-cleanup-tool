@@ -54,6 +54,8 @@ if (($ENV{REQUEST_METHOD} // 'GET') eq 'GET' && $action eq 'page') {
         my $script = $ENV{SCRIPT_NAME} // '/cgi/addon_cct.cgi';
         my $iframe = $script . '?action=page&embedded=1';
         require Cpanel::Template;
+        # cpsrvd CGI defaults to text/plain unless the script prints Content-type first.
+        print "Content-type: text/html; charset=utf-8\r\n\r\n";
         eval {
             Cpanel::Template::process_template(
                 'whostmgr',
@@ -69,7 +71,7 @@ if (($ENV{REQUEST_METHOD} // 'GET') eq 'GET' && $action eq 'page') {
             my $err = $@ // 'template error';
             $err =~ s/[\r\n]+/ /g;
             warn 'CCT WHM template: ', substr($err, 0, 500), "\n";
-            fail('500 Internal Server Error', 'No se pudo cargar el marco WHM de CCT.');
+            print '<p>No se pudo cargar el marco WHM de CCT.</p>';
         };
         exit 0;
     }
