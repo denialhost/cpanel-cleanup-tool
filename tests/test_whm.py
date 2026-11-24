@@ -97,6 +97,11 @@ class WhmBackendTests(unittest.TestCase):
         self.assertIn('CCT WHM bundle', app)
         self.assertNotIn('import(', app)
         self.assertTrue((ROOT / 'whm' / 'app.ui.js').is_file())
+        self.assertIn('id="account-sort"', html)
+        self.assertIn('id="usage-chart"', html)
+        self.assertIn('site-footer', html)
+        self.assertIn('DenialHost', html)
+        self.assertIn("sort: 'usage'", (ROOT / 'whm' / 'app.ui.js').read_text(encoding='utf-8'))
 
     def test_whm_wraps_spa_in_whostmgr_template(self):
         cgi = (ROOT / 'whm' / 'addon_cct.cgi').read_text(encoding='utf-8')

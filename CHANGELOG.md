@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.4.7
+
+- WHM: orden por % de uso del plan (mayor a menor) con selector cuenta/dominio/plan/disco, gráfico de las cuentas más llenas y pie con versión + DenialHost.
+
 ## 0.4.6
 
 - WHM: allowlist corregida a ``whm/listaccts/list`` (el listado de cuentas devolvía 500).

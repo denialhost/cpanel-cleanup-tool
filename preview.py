@@ -19,9 +19,12 @@ GIB = 1024**3
 MIB = 1024**2
 
 WHM_ACCOUNTS = [
-    {"user": "tienda", "domain": "tienda.cl", "plan": "business", "diskused": "17.6G", "disklimit": "20G", "email": "admin@tienda.cl"},
+    {"user": "tienda", "domain": "tienda.cl", "plan": "business", "diskused": "19.4G", "disklimit": "20G", "email": "admin@tienda.cl"},
     {"user": "blogdemo", "domain": "blog.demo", "plan": "starter", "diskused": "3.1G", "disklimit": "5G", "email": "hola@blog.demo"},
     {"user": "agencia", "domain": "agencia.example", "plan": "pro", "diskused": "42G", "disklimit": "50G", "email": "ops@agencia.example"},
+    {"user": "correo", "domain": "correo.local", "plan": "mail", "diskused": "980M", "disklimit": "1024M", "email": "postmaster@correo.local"},
+    {"user": "archivo", "domain": "archivo.local", "plan": "storage", "diskused": "120G", "disklimit": "200G", "email": "ops@archivo.local"},
+    {"user": "demo", "domain": "demo.local", "plan": "starter", "diskused": "180M", "disklimit": "unlimited", "email": "hola@demo.local"},
 ]
 
 
@@ -85,7 +88,7 @@ def fixture():
     storage["other"]=used-sum(storage.values())
     return {"items":items,"mail_items":mail_items,"partial":False,"warnings":[],"scanned_at":now,"visited":8421,
             "storage":{"status":"ok","basis":"allocated_bytes","categories":[{"key":key,"bytes":value} for key,value in storage.items()],"source":"demo"},
-            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.4.6",
+            "account":{"username":"tienda","home":"/home/tienda"},"version":"0.4.7",
             "quota":{"limit_bytes":limit,"used_bytes":used,"free_bytes":limit-used,"source":"demo"}}
 
 

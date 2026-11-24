@@ -183,11 +183,79 @@ function createActivity(doc = document) {
 
 const $ = id => document.getElementById(id);
 const state = {
-  accounts: [], filter: '', user: null, items: [], selected: new Set(), quota: {},
+  accounts: [], filter: '', sort: 'usage', version: '', user: null, items: [], selected: new Set(), quota: {},
   category: 'all', page: 0, pageSize: 9, busy: false, analysisToken: null, scanJob: null, scanStop: false, scannedAt: 0
 };
 const activity = createActivity();
 const icons = {trash: '♧', logs: '≡', backups: '▤', spam: '✉', mail_trash: '✉'};
+const CHART_LIMIT = 12;
+
+function parseDisk(value) {
+  if (value == null) return null;
+  const text = String(value).trim();
+  if (!text || /^(unlimited|none|null|n\/a|-)$/i.test(text)) return null;
+  const match = text.match(/^([\d.,]+)\s*([KMGTP]i?B?|B)?$/i);
+  if (!match) {
+    const raw = Number(text);
+    return Number.isFinite(raw) && raw >= 0 ? raw : null;
+  }
+  const amount = Number(match[1].replace(',', '.'));
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  const unit = (match[2] || 'B').toUpperCase();
+  const factor = {
+    B: 1, K: 1024, KB: 1024, KIB: 1024,
+    M: 1024 ** 2, MB: 1024 ** 2, MIB: 1024 ** 2,
+    G: 1024 ** 3, GB: 1024 ** 3, GIB: 1024 ** 3,
+    T: 1024 ** 4, TB: 1024 ** 4, TIB: 1024 ** 4,
+    P: 1024 ** 5, PB: 1024 ** 5, PIB: 1024 ** 5
+  }[unit];
+  return factor ? amount * factor : null;
+}
+
+function enrichAccount(row) {
+  const usedBytes = parseDisk(row.diskused);
+  const limitBytes = parseDisk(row.disklimit);
+  const usagePct = usedBytes != null && limitBytes > 0 ? (usedBytes / limitBytes) * 100 : null;
+  return {...row, usedBytes, limitBytes, usagePct};
+}
+
+function usageTone(pct) {
+  if (pct == null) return 'unknown';
+  if (pct >= 95) return 'critical';
+  if (pct >= 85) return 'high';
+  if (pct >= 70) return 'warn';
+  return 'ok';
+}
+
+function compareText(a, b) {
+  return String(a || '').localeCompare(String(b || ''), 'es', {sensitivity: 'base', numeric: true});
+}
+
+function sortedAccounts(rows) {
+  const list = rows.slice();
+  const key = state.sort || 'usage';
+  list.sort((a, b) => {
+    if (key === 'usage') {
+      const ap = a.usagePct == null ? -1 : a.usagePct;
+      const bp = b.usagePct == null ? -1 : b.usagePct;
+      return bp - ap || compareText(a.user, b.user);
+    }
+    if (key === 'disk') {
+      const au = a.usedBytes == null ? -1 : a.usedBytes;
+      const bu = b.usedBytes == null ? -1 : b.usedBytes;
+      return bu - au || compareText(a.user, b.user);
+    }
+    if (key === 'domain') return compareText(a.domain, b.domain) || compareText(a.user, b.user);
+    if (key === 'plan') return compareText(a.plan, b.plan) || compareText(a.user, b.user);
+    return compareText(a.user, b.user);
+  });
+  return list;
+}
+
+function setFooterVersion(version) {
+  state.version = version || state.version || '';
+  $('footer-version').textContent = state.version ? `CCT v${state.version}` : 'CCT';
+}
 
 function node(tag, cls, text) {
   const el = document.createElement(tag);
@@ -267,19 +335,111 @@ async function followCacheRefresh(initial) {
 
 function visibleAccounts() {
   const query = state.filter.toLocaleLowerCase('es');
-  return state.accounts.filter(row => !query || `${row.user} ${row.domain} ${row.plan}`.toLocaleLowerCase('es').includes(query));
+  const filtered = state.accounts.filter(row => !query || `${row.user} ${row.domain} ${row.plan}`.toLocaleLowerCase('es').includes(query));
+  return sortedAccounts(filtered);
+}
+
+function renderUsageSummary(rows) {
+  const known = rows.filter(row => row.usagePct != null);
+  const critical = known.filter(row => row.usagePct >= 95).length;
+  const high = known.filter(row => row.usagePct >= 85 && row.usagePct < 95).length;
+  $('usage-summary').replaceChildren(
+    node('span', 'usage-pill', `${rows.length} cuentas`),
+    node('span', 'usage-pill warn', `${high} ≥ 85 %`),
+    node('span', 'usage-pill critical', `${critical} ≥ 95 %`)
+  );
+  $('usage-chart-caption').textContent = known.length
+    ? `Top ${Math.min(CHART_LIMIT, known.length)} por porcentaje del plan.`
+    : 'Sin datos de cuota para graficar.';
+}
+
+function renderUsageChart(rows) {
+  const chart = $('usage-chart');
+  chart.replaceChildren();
+  const ranked = rows
+    .filter(row => row.usagePct != null)
+    .slice()
+    .sort((a, b) => (b.usagePct - a.usagePct) || compareText(a.user, b.user))
+    .slice(0, CHART_LIMIT);
+  if (!ranked.length) {
+    chart.append(node('p', 'usage-chart-empty', 'No hay porcentajes de uso disponibles.'));
+    return;
+  }
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  const rowHeight = 28;
+  const labelWidth = 118;
+  const width = 720;
+  const height = ranked.length * rowHeight + 8;
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('role', 'presentation');
+  ranked.forEach((row, index) => {
+    const y = index * rowHeight + 4;
+    const pct = Math.max(0, Math.min(100, row.usagePct));
+    const barMax = width - labelWidth - 70;
+    const barWidth = Math.max(2, (pct / 100) * barMax);
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', '0');
+    label.setAttribute('y', String(y + 16));
+    label.setAttribute('class', 'usage-chart-label');
+    label.textContent = row.user;
+    const track = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    track.setAttribute('x', String(labelWidth));
+    track.setAttribute('y', String(y + 6));
+    track.setAttribute('width', String(barMax));
+    track.setAttribute('height', '12');
+    track.setAttribute('rx', '3');
+    track.setAttribute('class', 'usage-chart-track');
+    const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bar.setAttribute('x', String(labelWidth));
+    bar.setAttribute('y', String(y + 6));
+    bar.setAttribute('width', String(barWidth));
+    bar.setAttribute('height', '12');
+    bar.setAttribute('rx', '3');
+    bar.setAttribute('class', `usage-chart-bar tone-${usageTone(pct)}`);
+    const value = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    value.setAttribute('x', String(labelWidth + barMax + 8));
+    value.setAttribute('y', String(y + 16));
+    value.setAttribute('class', 'usage-chart-value');
+    value.textContent = formatPercent(pct);
+    svg.append(label, track, bar, value);
+  });
+  chart.append(svg);
 }
 
 function renderAccountList() {
   const rows = visibleAccounts();
+  renderUsageSummary(state.accounts);
+  renderUsageChart(state.filter ? rows : state.accounts);
   $('account-list').replaceChildren();
   $('account-empty').hidden = rows.length > 0;
   for (const row of rows) {
     const tr = node('tr');
+    const tone = usageTone(row.usagePct);
+    if (tone === 'critical' || tone === 'high') tr.classList.add(`row-${tone}`);
+    const usage = node('td', 'usage-cell');
+    if (row.usagePct == null) usage.append(node('span', 'usage-na', '—'));
+    else {
+      const pct = Math.max(0, Math.min(100, row.usagePct));
+      const meter = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      meter.setAttribute('class', `usage-meter tone-${tone}`);
+      meter.setAttribute('viewBox', '0 0 100 8');
+      meter.setAttribute('aria-hidden', 'true');
+      const track = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      track.setAttribute('x', '0'); track.setAttribute('y', '0');
+      track.setAttribute('width', '100'); track.setAttribute('height', '8');
+      track.setAttribute('rx', '2'); track.setAttribute('class', 'usage-meter-track');
+      const fill = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      fill.setAttribute('x', '0'); fill.setAttribute('y', '0');
+      fill.setAttribute('width', String(Math.max(2, pct))); fill.setAttribute('height', '8');
+      fill.setAttribute('rx', '2'); fill.setAttribute('class', 'usage-meter-fill');
+      meter.append(track, fill);
+      usage.append(meter, node('strong', '', formatPercent(pct)));
+    }
     tr.append(
       node('td', '', row.user),
       node('td', '', row.domain || '—'),
       node('td', '', row.plan || '—'),
+      usage,
       node('td', '', `${row.diskused || '—'} / ${row.disklimit || '—'}`)
     );
     const action = node('td');
@@ -298,7 +458,8 @@ async function loadAccounts() {
   $('reload-accounts').disabled = true;
   try {
     const data = await request('accounts', null, null);
-    state.accounts = data.accounts || [];
+    state.accounts = (data.accounts || []).map(enrichAccount);
+    setFooterVersion(data.version);
     $('list-notice').hidden = true;
     renderAccountList();
   } catch (err) {
@@ -603,7 +764,12 @@ async function renderAudit(month) {
 
 $('reload-accounts').addEventListener('click', loadAccounts);
 $('account-search').addEventListener('input', () => { state.filter = $('account-search').value; renderAccountList(); });
+$('account-sort').addEventListener('change', () => {
+  state.sort = $('account-sort').value || 'usage';
+  renderAccountList();
+});
 $('back-list').addEventListener('click', backToList);
+setFooterVersion('');
 $('scan').addEventListener('click', scan);
 $('activity-stop').addEventListener('click', () => { state.scanStop = true; $('activity-stop').disabled = true; });
 $('show-audit').addEventListener('click', openAudit);

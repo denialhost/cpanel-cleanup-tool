@@ -1,6 +1,6 @@
-import {categories, formatBytes, formatPercent, percent, totals, candidateRows, storageSegments} from './model.js?v=0.4.6';
-import {setupMailCleanup} from './mail.js?v=0.4.6';
-import {createActivity, renderDetails, resultSummary} from './activity.js?v=0.4.6';
+import {categories, formatBytes, formatPercent, percent, totals, candidateRows, storageSegments} from './model.js?v=0.4.7';
+import {setupMailCleanup} from './mail.js?v=0.4.7';
+import {createActivity, renderDetails, resultSummary} from './activity.js?v=0.4.7';
 const $ = id => document.getElementById(id);
 const demo = document.body.dataset.demo === 'true';
 const state={items:[],selected:new Set(),quota:{},category:'all',page:0,pageSize:9,busy:false,scannedAt:0,storage:{status:'loading'},storageStale:false,scanJob:null,analysisToken:null,scanStop:false};
