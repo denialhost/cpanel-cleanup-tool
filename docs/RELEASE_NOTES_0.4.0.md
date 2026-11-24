@@ -10,9 +10,9 @@ Mini changelog público.
 
 ## Capturas (demo ficticia)
 
-- [Listado de cuentas WHM](screenshots/whm-accounts-current.jpg)
-- [Cuenta abierta / plan de limpieza](screenshots/whm-account-current.jpg)
-- [Auditoría mensual](screenshots/whm-audit-current.jpg)
+- [Listado de cuentas WHM](https://github.com/denialhost/cpanel-cleanup-tool/blob/v0.4.0/docs/screenshots/whm-accounts-current.jpg)
+- [Cuenta abierta / plan de limpieza](https://github.com/denialhost/cpanel-cleanup-tool/blob/v0.4.0/docs/screenshots/whm-account-current.jpg)
+- [Auditoría mensual](https://github.com/denialhost/cpanel-cleanup-tool/blob/v0.4.0/docs/screenshots/whm-audit-current.jpg)
 
 Estas imágenes son de la demostración local; no corresponden a un servidor real.
 
