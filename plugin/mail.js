@@ -1,6 +1,6 @@
-import {formatBytes,formatPercent,percent} from './model.js?v=0.4.7';
-import {localDateString,presetDate,cutoffFromDate,cutoffLabel,canConfirmMail} from './mail-model.js?v=0.4.7';
-import {renderDetails,resultSummary} from './activity.js?v=0.4.7';
+import {formatBytes,formatPercent,percent} from './model.js?v=0.4.8';
+import {localDateString,presetDate,cutoffFromDate,cutoffLabel,canConfirmMail} from './mail-model.js?v=0.4.8';
+import {renderDetails,resultSummary} from './activity.js?v=0.4.8';
 const folderLabel=name=>{
   const short=name.startsWith('INBOX.')?name.slice(6):name;
   return ({inbox:'Recibidos',sent:'Enviados',drafts:'Borradores',trash:'Papelera',spam:'Spam',junk:'Spam',archive:'Archivo'})[short.toLowerCase()]||short.replaceAll('.',' / ');

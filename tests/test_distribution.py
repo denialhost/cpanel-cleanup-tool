@@ -18,7 +18,9 @@ class DistributionTests(unittest.TestCase):
     def setUpClass(cls):
         cls.version = (ROOT / 'VERSION').read_text().strip()
         cls.archive = ROOT / 'artifacts' / ('cct-' + cls.version + '.tar.gz')
-        subprocess.run([sys.executable, str(ROOT / 'tools/package.py')], check=True, capture_output=True)
+        packed = subprocess.run([sys.executable, str(ROOT / 'tools/package.py')], capture_output=True, text=True)
+        if packed.returncode:
+            raise AssertionError('package.py failed:\n' + (packed.stderr or '') + (packed.stdout or ''))
         cls.verifier = (ROOT / 'bootstrap.sh').read_text().split("<<'PY'\n", 1)[1].split('\nPY\n', 1)[0]
 
     def test_published_assets_match_checksums_and_version(self):
@@ -41,7 +43,9 @@ class DistributionTests(unittest.TestCase):
 
     def test_package_is_reproducible(self):
         before = self.archive.read_bytes()
-        subprocess.run([sys.executable, str(ROOT / 'tools/package.py')], check=True, capture_output=True)
+        packed = subprocess.run([sys.executable, str(ROOT / 'tools/package.py')], capture_output=True, text=True)
+        if packed.returncode:
+            raise AssertionError('package.py failed:\n' + (packed.stderr or '') + (packed.stdout or ''))
         self.assertEqual(self.archive.read_bytes(), before)
 
     def test_native_shell_and_embedded_app_are_installed_together(self):

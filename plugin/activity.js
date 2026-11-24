@@ -1,4 +1,4 @@
-import {formatBytes} from './model.js?v=0.4.7';
+import {formatBytes} from './model.js?v=0.4.8';
 
 export function progressState(completed, total) {
   if (!Number.isFinite(total) || total <= 0) return {percent:null, completed:0, total:0};

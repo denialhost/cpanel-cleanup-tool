@@ -46,9 +46,11 @@ def main() -> None:
         + "\n"
         + app_body
     )
-    if re.search(r"(?m)^(import|export)\s", bundle):
-        raise SystemExit("bundle still contains import/export")
-    app_path.write_text(bundle, encoding="utf-8", newline="\n")
+    leftover = [line for line in bundle.splitlines() if re.match(r"(import|export)\s", line)]
+    if leftover:
+        raise SystemExit("bundle still contains import/export: " + "; ".join(leftover[:5]))
+    # Avoid Path.write_text(newline=...): that kwarg exists only in Python 3.10+.
+    app_path.write_bytes(bundle.replace("\r\n", "\n").encode("utf-8"))
     print(app_path, len(bundle))
 
 

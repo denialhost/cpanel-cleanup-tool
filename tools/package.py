@@ -11,7 +11,12 @@ OUT = ROOT / "artifacts"
 OUT.mkdir(exist_ok=True)
 # Refresh the WHM single-file UI bundle before packaging.
 import runpy
-runpy.run_path(str(ROOT / "tools" / "bundle_whm_app.py"), run_name="__main__")
+import sys
+try:
+    runpy.run_path(str(ROOT / "tools" / "bundle_whm_app.py"), run_name="__main__")
+except SystemExit as exc:
+    if exc.code not in {0, None}:
+        raise
 version = (ROOT / "VERSION").read_text(encoding="ascii").strip()
 if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
     raise SystemExit("Invalid VERSION")

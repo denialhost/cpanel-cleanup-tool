@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.4.8
+
+- Corrige el empaquetado en CI con Python 3.9 (``Path.write_text(..., newline=)`` solo existe desde 3.10).
+
 ## 0.4.7
 
 - WHM: orden por % de uso del plan (mayor a menor) con selector cuenta/dominio/plan/disco, gráfico de las cuentas más llenas y pie con versión + DenialHost.
