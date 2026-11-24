@@ -101,7 +101,10 @@ class WhmBackendTests(unittest.TestCase):
         self.assertNotIn('id="usage-chart"', html)
         self.assertIn('site-footer', html)
         self.assertIn('DenialHost', html)
-        self.assertIn("sort: 'usage'", (ROOT / 'whm' / 'app.ui.js').read_text(encoding='utf-8'))
+        ui = (ROOT / 'whm' / 'app.ui.js').read_text(encoding='utf-8')
+        self.assertIn("sort: 'usage'", ui)
+        self.assertIn('// «Revisar» abre la cuenta y lanza el análisis de inmediato.', ui)
+        self.assertRegex(ui, r'function openAccount\(user\)[\s\S]*?\n  scan\(\);')
 
     def test_whm_wraps_spa_in_whostmgr_template(self):
         cgi = (ROOT / 'whm' / 'addon_cct.cgi').read_text(encoding='utf-8')

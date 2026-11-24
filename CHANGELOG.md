@@ -1,5 +1,9 @@
 # Cambios
 
+## 0.4.10
+
+- WHM: al pulsar «Revisar» se abre la cuenta y arranca el análisis automáticamente.
+
 ## 0.4.9
 
 - WHM: elimina el gráfico de uso de la cabecera; se mantienen ordenación, columna de % y pie.

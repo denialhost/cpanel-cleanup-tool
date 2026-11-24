@@ -413,7 +413,7 @@ function openAccount(user) {
   $('current-user').textContent = user;
   $('banner-user').textContent = user;
   $('account-title').textContent = user;
-  $('analysis-account').textContent = 'Sin análisis todavía.';
+  $('analysis-account').textContent = 'Iniciando análisis…';
   $('notice').hidden = true;
   $('warnings').hidden = true;
   $('cache-notice').hidden = true;
@@ -421,6 +421,8 @@ function openAccount(user) {
   renderTabs();
   renderTable();
   renderSelection();
+  // «Revisar» abre la cuenta y lanza el análisis de inmediato.
+  scan();
 }
 
 function backToList() {
